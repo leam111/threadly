@@ -13,9 +13,9 @@ builder.Services.AddOpenApi();
 
 
 builder.Services.AddScoped<IWardrobeItemRepository, WardrobeItemRepository>();
-
 builder.Services.AddScoped<IWardrobeItemService, WardrobeItemService>();
-
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 
 var app = builder.Build();
