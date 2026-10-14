@@ -1,9 +1,9 @@
-const express = require("express");
+import express from "express";
 const app = express();
 
 
 app.get("/lilo",(req,res)=>{
-res.send("hello threadlyyy!!!")
+res.send("hello threadlyyy again!!, this time using typescript ")
 
 })
 
