@@ -1,3 +1,6 @@
+import "dotenv/config"
+import { connectDB } from "./db";
+
 import express from "express";
 const app = express();
 
@@ -7,6 +10,12 @@ res.send("hello threadlyyy again!!, this time using typescript ")
 
 })
 
-app.listen(3000,()=>{
-    console.log("server is running on port 3000")
-});
+async function start() {
+  await connectDB();
+
+  app.listen(3000, () => {
+    console.log("server is running on port 3000");
+  });
+}
+
+start();
