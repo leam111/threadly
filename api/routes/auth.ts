@@ -3,6 +3,7 @@ import {z} from "zod";
 import bcrypt from "bcryptjs";
 import {User} from '../models/User';
 import jwt from "jsonwebtoken";
+import {requireAuth} from '../middleware/requireAuth';
 const router =Router();
 
 
@@ -73,5 +74,19 @@ router.post("/login", async (req, res) => {
     user: { id: user._id, email: user.email, role: user.role },
   });
 });
+
+router.get("/me", requireAuth, async (req, res) => {
+  const user = await User.findById(res.locals.user.id);
+
+  if (!user || !user.isActive) {
+    res.status(401).json({ message: "Log in again" });
+    return;
+  }
+
+  res.json({ id: user._id, email: user.email, role: user.role });
+});
+
+
+
 
 export default router;
