@@ -12,7 +12,7 @@ const registerSchema = z.object({
 email : z.email(),
 password : z.string().min(8),
 });
-
+//1
 router.post("/register",async(req,res)=>{
 const result = registerSchema.safeParse(req.body);
 if(!result.success){
@@ -38,6 +38,8 @@ const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1),
 });
+//2
+
 
 router.post("/login", async (req, res) => {
   const result = loginSchema.safeParse(req.body);
@@ -74,7 +76,7 @@ router.post("/login", async (req, res) => {
     user: { id: user._id, email: user.email, role: user.role },
   });
 });
-
+//3
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(res.locals.user.id);
 
