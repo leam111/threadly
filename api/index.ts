@@ -1,9 +1,11 @@
 import "dotenv/config"
+import helmet from "helmet";
 import { connectDB } from "./db";
 import authRoutes from './routes/auth';
 import adminRoutes from './routes/admin';
 import express from "express";
 const app = express();
+ app.use(helmet());
 
 app.use(express.json());
 
