@@ -5,7 +5,7 @@ import {User} from '../models/User';
 import jwt from "jsonwebtoken";
 import {requireAuth} from '../middleware/requireAuth';
 const router =Router();
-
+const fakeHash=bcrypt.hashSync("fakepassword",12); // fake hash to prevent timing attacks
 
 
 const registerSchema = z.object({
@@ -72,7 +72,22 @@ router.post("/login", async (req, res) => {
   const { password } = result.data;
 
   const user = await User.findOne({ email });
-  const passwordOk = user ? await bcrypt.compare(password, user.passwordHash) : false;
+
+if(!user){
+
+await bcrypt.compare(password,fakeHash); 
+res.status(401).json({ message: "Invalid email or password" });
+return;
+}
+
+
+
+
+  const passwordOk =  await bcrypt.compare(password, user.passwordHash);
+
+
+
+
 
   if (!user || !user.isActive || !passwordOk) {
     res.status(401).json({ message: "Invalid email or password" });
