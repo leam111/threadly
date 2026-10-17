@@ -4,8 +4,7 @@ import bcrypt from "bcryptjs";
 import { User } from "../models/User";
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import {loginLimiter} from "../middleware/rateLimiters";
-
+import {registerLimiter,loginLimiter} from "../middleware/rateLimiters";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
@@ -18,7 +17,7 @@ const registerSchema = z.object({
     ,
 });
 //1
-router.post("/register", async (req, res) => {
+router.post("/register",registerLimiter, async (req, res) => {
   const result = registerSchema.safeParse(req.body);
   if (!result.success) {
     res
