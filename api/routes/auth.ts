@@ -20,17 +20,36 @@ if(!result.success){
     return;
 }
 
-const email = result.data.email;
+const email = result.data.email.toLowerCase();
 const {password}=result.data;
+
 const existingUser = await User.findOne({email});
 
 if(existingUser){
  res.status(409).json({message:"user with this email already exists"});
 return;
 }
+
+
 const passwordHash = await bcrypt.hash(password,12);
-const user = await User.create({email,passwordHash});
-res.status(201).json({message:"user created successfully",userId:user._id , email:user.email,role:user.role});
+try {
+  const user = await User.create({email,passwordHash});
+
+  res.status(201).json({message:"user created successfully",userId:user._id , email:user.email,role:user.role});
+} 
+catch (error) {
+
+
+  if(typeof error==="object"&&error!==null&&"code"in error &&error.code===11000){
+
+    res.status(409).json({message:"user with this email already exists"});
+return ;
+  }
+
+  throw error;
+
+}
+
 
 });
 
