@@ -165,6 +165,18 @@ router.post("/refresh", async (req, res) => {
     return;
   }
 
+if (stored.usedAt) {
+  await RefreshToken.updateMany(
+    { /* the family, and not already cancelled */ },
+    { $set: { revokedAt: new Date() } },
+  );
+  res.status(401).json({ message: "invalid refresh token" });
+  return;
+}
+
+
+
+
   if (stored.expiresAt < new Date() || stored.usedAt || stored.revokedAt) {
     res.status(401).json({ message: "invalid refresh token" });
     return;
@@ -212,15 +224,6 @@ router.post("/refresh", async (req, res) => {
 
 
 
-
-
-
-
-
-  
-
-
-
 router.post("/logout", async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
@@ -237,11 +240,6 @@ await stored.save();
   res.clearCookie("refreshToken", { path: "/auth" });
   res.json({ message: "logged out" });
 });
-
-
-
-
-
 
 
 router.post("/logout-others", requireAuth, async (req, res) => {
@@ -264,9 +262,6 @@ if (stored.userId.toString() !== res.locals.user.id) {
   return;
 }
 
-
-
-  // ---- NEW PART STARTS HERE ----
   await RefreshToken.updateMany(
     {
       userId: stored.userId,
