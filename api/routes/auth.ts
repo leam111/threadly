@@ -2,11 +2,19 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
+
+import {RefreshToken} from '../models/RefreshTokens';
+import {generateRefreshToken,hashToken} from '../utils/tokens';
+import crypto from "crypto";
+
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
 import {registerLimiter,loginLimiter} from "../middleware/rateLimiters";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
+
+const REFRESH_MS = 7 * 24 * 60 * 60 * 1000; 
+
 
 const registerSchema = z.object({
   email: z.email(),
@@ -108,11 +116,46 @@ router.post("/login",loginLimiter, async (req, res) => {
     { expiresIn: "15m" },
   );
 
+
+
+
+const refreshToken = generateRefreshToken();
+
+const familyId = crypto.randomUUID();
+
+
+await RefreshToken.create({
+userId: user._id,
+tokenHash :hashToken(refreshToken),
+familyId ,
+expiresAt : new Date(Date.now() + REFRESH_MS),
+});
+
+
+
+res.cookie("refreshToken",refreshToken,{
+  httpOnly:true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite:"strict",
+  maxAge:REFRESH_MS,
+  path:'/auth'
+});
+
+
   res.json({
     accessToken,
     user: { id: user._id, email: user.email, role: user.role },
   });
 });
+
+
+
+
+
+
+
+
+
 //3
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(res.locals.user.id);
