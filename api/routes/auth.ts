@@ -209,4 +209,74 @@ router.post("/refresh", async (req, res) => {
   res.json({ accessToken });
 });
 
+
+
+
+
+
+
+
+
+  
+
+
+
+router.post("/logout", async (req, res) => {
+  const cookie = req.cookies.refreshToken;
+
+  if (typeof cookie === "string") {
+    const tokenHash = hashToken(cookie);
+    const stored = await RefreshToken.findOne({ tokenHash });
+
+    if (stored) {
+stored.revokedAt = new Date();
+await stored.save();
+}
+  }
+
+  res.clearCookie("refreshToken", { path: "/auth" });
+  res.json({ message: "logged out" });
+});
+
+
+
+
+
+
+
+router.post("/logout-others", requireAuth, async (req, res) => {
+  const cookie = req.cookies.refreshToken;
+
+  if (typeof cookie !== "string") {
+    res.status(401).json({ message: "log in first" });
+    return;
+  }
+
+  const tokenHash = hashToken(cookie);
+  const stored = await RefreshToken.findOne({ tokenHash });
+
+  if (!stored) {
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
+if (stored.userId.toString() !== res.locals.user.id) {
+  res.status(401).json({ message: "invalid refresh token" });
+  return;
+}
+
+
+
+  // ---- NEW PART STARTS HERE ----
+  await RefreshToken.updateMany(
+    {
+      userId: stored.userId,
+      familyId: { $ne: stored.familyId },
+      revokedAt: { $exists: false },
+    },
+    { $set: { revokedAt: new Date() } },
+  );
+
+  res.json({ message: "other sessions logged out" });
+  // ---- NEW PART ENDS HERE ----
+});
 export default router;
