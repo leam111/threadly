@@ -3,36 +3,34 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
 
-import {RefreshToken} from '../models/RefreshTokens';
-import {generateRefreshToken,hashToken} from '../utils/tokens';
+import { RefreshToken } from "../models/RefreshTokens";
+import { generateRefreshToken, hashToken } from "../utils/tokens";
 import crypto from "crypto";
 
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import {registerLimiter,loginLimiter} from "../middleware/rateLimiters";
+import { registerLimiter, loginLimiter } from "../middleware/rateLimiters";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
-const REFRESH_MS = 7 * 24 * 60 * 60 * 1000; 
-
+const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
 const registerSchema = z.object({
   email: z.email(),
   password: z
     .string()
     .min(8)
-    .regex(/[A-Za-z]/, "at least one letter is required").regex(/[0-9]/,"at least one number is required")
-    ,
+    .regex(/[A-Za-z]/, "at least one letter is required")
+    .regex(/[0-9]/, "at least one number is required"),
 });
 //1
-router.post("/register",registerLimiter, async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   const result = registerSchema.safeParse(req.body);
   if (!result.success) {
-    res
-      .status(400)
-      .json({
-        message: "the email must be valid and the password needs at least 8 characters , with a letter and a number",
-      });
+    res.status(400).json({
+      message:
+        "the email must be valid and the password needs at least 8 characters , with a letter and a number",
+    });
     return;
   }
 
@@ -50,14 +48,12 @@ router.post("/register",registerLimiter, async (req, res) => {
   try {
     const user = await User.create({ email, passwordHash });
 
-    res
-      .status(201)
-      .json({
-        message: "user created successfully",
-        userId: user._id,
-        email: user.email,
-        role: user.role,
-      });
+    res.status(201).json({
+      message: "user created successfully",
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+    });
   } catch (error) {
     if (
       typeof error === "object" &&
@@ -79,7 +75,7 @@ const loginSchema = z.object({
 });
 //2
 
-router.post("/login",loginLimiter, async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const result = loginSchema.safeParse(req.body);
 
   if (!result.success) {
@@ -116,41 +112,30 @@ router.post("/login",loginLimiter, async (req, res) => {
     { expiresIn: "15m" },
   );
 
+  const refreshToken = generateRefreshToken();
 
+  const familyId = crypto.randomUUID();
 
+  await RefreshToken.create({
+    userId: user._id,
+    tokenHash: hashToken(refreshToken),
+    familyId,
+    expiresAt: new Date(Date.now() + REFRESH_MS),
+  });
 
-const refreshToken = generateRefreshToken();
-
-const familyId = crypto.randomUUID();
-
-
-await RefreshToken.create({
-userId: user._id,
-tokenHash :hashToken(refreshToken),
-familyId ,
-expiresAt : new Date(Date.now() + REFRESH_MS),
-});
-
-
-res.cookie("refreshToken",refreshToken,{
-  httpOnly:true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite:"strict",
-  maxAge:REFRESH_MS,
-  path:'/auth'
-});
-
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: REFRESH_MS,
+    path: "/auth",
+  });
 
   res.json({
     accessToken,
     user: { id: user._id, email: user.email, role: user.role },
   });
 });
-
-
-
-
-
 
 //3
 router.get("/me", requireAuth, async (req, res) => {
@@ -163,21 +148,6 @@ router.get("/me", requireAuth, async (req, res) => {
 
   res.json({ id: user._id, email: user.email, role: user.role });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 router.post("/refresh", async (req, res) => {
   const cookie = req.cookies.refreshToken;
@@ -207,6 +177,16 @@ router.post("/refresh", async (req, res) => {
     return;
   }
 
+  stored.usedAt = new Date();
+  await stored.save();
+  const newRefreshToken = generateRefreshToken();
+  await RefreshToken.create({
+    userId: stored.userId,
+    tokenHash: hashToken(newRefreshToken),
+    familyId: stored.familyId,
+    expiresAt: new Date(Date.now() + REFRESH_MS),
+  });
+
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     throw new Error("JWT_SECRET is missing in .env");
@@ -218,21 +198,15 @@ router.post("/refresh", async (req, res) => {
     { expiresIn: "15m" },
   );
 
+  res.cookie("refreshToken", newRefreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: REFRESH_MS,
+    path: "/auth",
+  });
+
   res.json({ accessToken });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export default router;
