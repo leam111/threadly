@@ -167,7 +167,7 @@ router.post("/refresh", async (req, res) => {
 
 if (stored.usedAt) {
   await RefreshToken.updateMany(
-    { /* the family, and not already cancelled */ },
+{ familyId: stored.familyId, revokedAt: { $exists: false } },
     { $set: { revokedAt: new Date() } },
   );
   res.status(401).json({ message: "invalid refresh token" });
@@ -272,6 +272,5 @@ if (stored.userId.toString() !== res.locals.user.id) {
   );
 
   res.json({ message: "other sessions logged out" });
-  // ---- NEW PART ENDS HERE ----
 });
 export default router;
