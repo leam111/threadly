@@ -132,7 +132,6 @@ expiresAt : new Date(Date.now() + REFRESH_MS),
 });
 
 
-
 res.cookie("refreshToken",refreshToken,{
   httpOnly:true,
   secure: process.env.NODE_ENV === "production",
@@ -153,9 +152,6 @@ res.cookie("refreshToken",refreshToken,{
 
 
 
-
-
-
 //3
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(res.locals.user.id);
@@ -167,6 +163,65 @@ router.get("/me", requireAuth, async (req, res) => {
 
   res.json({ id: user._id, email: user.email, role: user.role });
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+router.post("/refresh", async (req, res) => {
+  const cookie = req.cookies.refreshToken;
+
+  if (typeof cookie !== "string") {
+    res.status(401).json({ message: "log in first" });
+    return;
+  }
+
+  const tokenHash = hashToken(cookie);
+  const stored = await RefreshToken.findOne({ tokenHash });
+
+  if (!stored) {
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
+
+  if (stored.expiresAt < new Date() || stored.usedAt || stored.revokedAt) {
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
+
+  const userFound = await User.findById(stored.userId);
+
+  if (!userFound || !userFound.isActive) {
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is missing in .env");
+  }
+
+  const accessToken = jwt.sign(
+    { sub: userFound._id.toString(), role: userFound.role },
+    secret,
+    { expiresIn: "15m" },
+  );
+
+  res.json({ accessToken });
+});
+
+
 
 
 
