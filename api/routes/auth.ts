@@ -324,4 +324,44 @@ await RefreshToken.updateMany(
 });
 
 
+
+
+
+
+const deactivateSchema = z.object({
+  currentPassword: z.string().min(1)
+});
+
+router.post("/deactivate", requireAuth, async (req, res) => {
+const result = deactivateSchema.safeParse(req.body);
+  
+  if(!result.success){
+    res.status(400).json({message:"invalid input"});
+    return ;
+  }
+  
+
+const user = await User.findById(res.locals.user.id);
+
+if(!user||!user.isActive){
+res.status(401).json({ message: "log in again" });
+return;
+}
+
+
+const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+
+
+if(!passwordOk){
+  res.status(401).json({message:"password is wrong"});
+  return;
+}
+
+
+res.json({message:"ready to deactivate"});
+
+});
+
+
+
 export default router;
