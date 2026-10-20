@@ -358,7 +358,18 @@ if(!passwordOk){
 }
 
 
-res.json({message:"ready to deactivate"});
+user.isActive=false;
+await user.save();
+
+await RefreshToken.updateMany(
+
+{userId:user._id ,revokedAt:{$exists:false}},
+{$set:{revokedAt:new Date()}},
+);
+
+
+res.clearCookie("refreshToken",{path:"/auth"});
+res.json({message:"account deactivated"});
 
 });
 
