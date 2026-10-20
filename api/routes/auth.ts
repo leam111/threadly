@@ -2,27 +2,30 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
-
+import { AuditLog } from "../models/AuditLog";
 import { RefreshToken } from "../models/RefreshTokens";
 import { generateRefreshToken, hashToken } from "../utils/tokens";
 import crypto from "crypto";
 
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import { registerLimiter, loginLimiter } from "../middleware/rateLimiters";
+import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
+import { setDefaultResultOrder } from "dns";
+import { logAudit } from "../utils/audit";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
 const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
+const passwordRules = z.string().min(8).regex(/[A-Za-z]/, "at least one letter is required")
+.regex(/[0-9]/, "at least one number is required");
+
+
+
+
 const registerSchema = z.object({
   email: z.email(),
-  password: z
-    .string()
-    .min(8)
-    .regex(/[A-Za-z]/, "at least one letter is required")
-    .regex(/[0-9]/, "at least one number is required"),
-});
+  password: passwordRules});
 //1
 router.post("/register", registerLimiter, async (req, res) => {
   const result = registerSchema.safeParse(req.body);
@@ -97,6 +100,17 @@ router.post("/login", loginLimiter, async (req, res) => {
   const passwordOk = await bcrypt.compare(password, user.passwordHash);
 
   if (!user || !user.isActive || !passwordOk) {
+
+if(["admin","superadmin"].includes(user.role)){
+  void logAudit({
+    actorId:user._id.toString(),
+    action:"auth.login.failure",
+    details:{reason:user.isActive?"wrong password":"account off"},
+    ip:req.ip,
+  })
+}
+
+
     res.status(401).json({ message: "Invalid email or password" });
     return;
   }
@@ -131,6 +145,16 @@ router.post("/login", loginLimiter, async (req, res) => {
     path: "/auth",
   });
 
+
+  if (["admin", "superadmin"].includes(user.role)) {
+    void logAudit({
+      actorId: user._id.toString(),
+      action: "auth.login.success",
+      ip: req.ip,
+    });
+  }
+
+
   res.json({
     accessToken,
     user: { id: user._id, email: user.email, role: user.role },
@@ -149,7 +173,7 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({ id: user._id, email: user.email, role: user.role });
 });
 
-router.post("/refresh", async (req, res) => {
+router.post("/refresh",RefreshLimiter, async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
   if (typeof cookie !== "string") {
@@ -273,4 +297,108 @@ if (stored.userId.toString() !== res.locals.user.id) {
 
   res.json({ message: "other sessions logged out" });
 });
+
+
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordRules,
+});
+
+router.post("/change-password",requireAuth,async(req,res)=>{
+
+  const result = changePasswordSchema.safeParse(req.body);
+
+if(!result.success){
+  res.status(400).json({message:"invalid input"});
+  return;
+}
+
+const user = await User.findById(res.locals.user.id);
+
+if(!user||!user.isActive){
+  res.status(401).json({message:"you need to log in again"});
+return ;
+}
+
+
+const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+
+
+if(!passwordOk){
+  res.status(401).json({message:"current password is wrong"});
+  return ;
+}
+
+user.passwordHash=await bcrypt.hash(result.data.newPassword,12);
+await user.save();
+
+
+await RefreshToken.updateMany(
+    { userId: user._id, revokedAt: { $exists: false } },
+    { $set: { revokedAt: new Date() } },
+  );
+
+  res.clearCookie("refreshToken", { path: "/auth" });
+  res.json({ message: "password changed, please log in again" });
+
+
+});
+
+
+
+
+
+
+const deactivateSchema = z.object({
+  currentPassword: z.string().min(1)
+});
+
+router.post("/deactivate", requireAuth, async (req, res) => {
+const result = deactivateSchema.safeParse(req.body);
+  
+  if(!result.success){
+    res.status(400).json({message:"invalid input"});
+    return ;
+  }
+  
+
+const user = await User.findById(res.locals.user.id);
+
+if(!user||!user.isActive){
+res.status(401).json({ message: "log in again" });
+return;
+}
+
+
+const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+
+
+if(!passwordOk){
+  res.status(401).json({message:"password is wrong"});
+  return;
+}
+
+
+user.isActive=false;
+await user.save();
+
+await RefreshToken.updateMany(
+
+{userId:user._id ,revokedAt:{$exists:false}},
+{$set:{revokedAt:new Date()}},
+);
+
+
+res.clearCookie("refreshToken",{path:"/auth"});
+res.json({message:"account deactivated"});
+
+});
+
+
+
+
+
+
+
 export default router;

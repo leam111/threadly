@@ -19,6 +19,15 @@ limit :5,
 standardHeaders:"draft-7",
 legacyHeaders:false,
 message:{message:"too many register attempts , please try again after a while"}
+});
 
+export const RefreshLimiter = rateLimit({
+
+windowMs : 60 * 1000,
+limit : 10,
+standardHeaders:"draft-7",
+legacyHeaders:false,
+message:{message:"too many refresh attempts , please try again after a minute"
+}
 
 });

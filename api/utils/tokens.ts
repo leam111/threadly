@@ -15,4 +15,3 @@ return crypto.createHash("sha256").update(token).digest("hex")
     
 
 }
-console.log(hashToken("hello"));
