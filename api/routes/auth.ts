@@ -9,7 +9,7 @@ import crypto from "crypto";
 
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import { registerLimiter, loginLimiter } from "../middleware/rateLimiters";
+import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
@@ -149,7 +149,7 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({ id: user._id, email: user.email, role: user.role });
 });
 
-router.post("/refresh", async (req, res) => {
+router.post("/refresh",RefreshLimiter, async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
   if (typeof cookie !== "string") {
