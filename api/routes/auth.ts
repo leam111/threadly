@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
-
+import { AuditLog } from "../models/AuditLog";
 import { RefreshToken } from "../models/RefreshTokens";
 import { generateRefreshToken, hashToken } from "../utils/tokens";
 import crypto from "crypto";
@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
 import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
 import { setDefaultResultOrder } from "dns";
+import { logAudit } from "../utils/audit";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
@@ -99,6 +100,17 @@ router.post("/login", loginLimiter, async (req, res) => {
   const passwordOk = await bcrypt.compare(password, user.passwordHash);
 
   if (!user || !user.isActive || !passwordOk) {
+
+if(["admin","superadmin"].includes(user.role)){
+  void logAudit({
+    actorId:user._id.toString(),
+    action:"auth.login.failure",
+    details:{reason:user.isActive?"wrong password":"account off"},
+    ip:req.ip,
+  })
+}
+
+
     res.status(401).json({ message: "Invalid email or password" });
     return;
   }
@@ -132,6 +144,16 @@ router.post("/login", loginLimiter, async (req, res) => {
     maxAge: REFRESH_MS,
     path: "/auth",
   });
+
+
+  if (["admin", "superadmin"].includes(user.role)) {
+    void logAudit({
+      actorId: user._id.toString(),
+      action: "auth.login.success",
+      ip: req.ip,
+    });
+  }
+
 
   res.json({
     accessToken,
@@ -372,6 +394,10 @@ res.clearCookie("refreshToken",{path:"/auth"});
 res.json({message:"account deactivated"});
 
 });
+
+
+
+
 
 
 

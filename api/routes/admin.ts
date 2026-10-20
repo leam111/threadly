@@ -5,7 +5,9 @@ import mongoose from 'mongoose';
 import {z} from "zod";
 import { User} from "../models/User";
 import { RefreshToken } from "../models/RefreshTokens";
-
+import { AuditLog } from "../models/AuditLog";
+import { logAudit } from "../utils/audit";
+import { isAscii } from "node:buffer";
 const router = Router();
 
 
@@ -45,6 +47,12 @@ if(!userId){
 
   userId.isActive = result.data.isActive;
   await userId.save();
+
+await logAudit({actorId:res.locals.user.id , action: userId.isActive ? "user.activate" : "user.deactivate",targetId:userId._id.toString(),details:{isActive:userId.isActive },ip:req.ip});
+
+
+
+
 
   if (!userId.isActive) {
     await RefreshToken.updateMany(
