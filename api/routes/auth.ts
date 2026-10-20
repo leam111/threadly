@@ -310,7 +310,16 @@ if(!passwordOk){
 
 user.passwordHash=await bcrypt.hash(result.data.newPassword,12);
 await user.save();
-res.json({message:"password changed"});
+
+
+await RefreshToken.updateMany(
+    { userId: user._id, revokedAt: { $exists: false } },
+    { $set: { revokedAt: new Date() } },
+  );
+
+  res.clearCookie("refreshToken", { path: "/auth" });
+  res.json({ message: "password changed, please log in again" });
+
 
 });
 
