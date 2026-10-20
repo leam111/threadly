@@ -68,7 +68,31 @@ await logAudit({actorId:res.locals.user.id , action: userId.isActive ? "user.act
 });
 
 
+const auditQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).default(20),
+  action: z.string().optional(),
+});
 
+router.get("/audit", requireAuth, requireRole(["admin", "superadmin"]), async (req, res) => {
+  const result = auditQuerySchema.safeParse(req.query);
+  if (!result.success) {
+    res.status(400).json({ message: "invalid query" });
+    return;
+  }
+
+  const page = result.data.page;
+  const limit = Math.min(result.data.limit, 50);
+  const filter = result.data.action ? { action: result.data.action } : {};
+
+  const total = await AuditLog.countDocuments(filter);
+  const items = await AuditLog.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  res.json({ page, limit, total, items });
+});
 
 
 
