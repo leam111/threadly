@@ -10,19 +10,21 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
 import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
+import { setDefaultResultOrder } from "dns";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
 const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
+const passwordRules = z.string().min(8).regex(/[A-Za-z]/, "at least one letter is required")
+.regex(/[0-9]/, "at least one number is required");
+
+
+
+
 const registerSchema = z.object({
   email: z.email(),
-  password: z
-    .string()
-    .min(8)
-    .regex(/[A-Za-z]/, "at least one letter is required")
-    .regex(/[0-9]/, "at least one number is required"),
-});
+  password: passwordRules});
 //1
 router.post("/register", registerLimiter, async (req, res) => {
   const result = registerSchema.safeParse(req.body);
@@ -273,4 +275,44 @@ if (stored.userId.toString() !== res.locals.user.id) {
 
   res.json({ message: "other sessions logged out" });
 });
+
+
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: passwordRules,
+});
+
+router.post("/change-password",requireAuth,async(req,res)=>{
+
+  const result = changePasswordSchema.safeParse(req.body);
+
+if(!result.success){
+  res.status(400).json({message:"invalid input"});
+  return;
+}
+
+const user = await User.findById(res.locals.user.id);
+
+if(!user||!user.isActive){
+  res.status(401).json({message:"you need to log in again"});
+return ;
+}
+
+
+const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+
+
+if(!passwordOk){
+  res.status(401).json({message:"current password is wrong"});
+  return ;
+}
+
+user.passwordHash=await bcrypt.hash(result.data.newPassword,12);
+await user.save();
+res.json({message:"password changed"});
+
+});
+
+
 export default router;
