@@ -4,4 +4,6 @@ module.exports = {
   testEnvironment: "node",
   testMatch: ["**/*.test.ts"],
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
+  // the test database is remote (Atlas), so connecting can take more than the default 5 seconds
+  testTimeout: 30000,
 };
