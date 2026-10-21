@@ -7,18 +7,16 @@ import { RefreshToken } from "../models/RefreshTokens";
 import { generateRefreshToken, hashToken } from "../utils/tokens";
 import crypto from "crypto";
 
+import { passwordRules } from "../utils/passwordRules";
+
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
 import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
-import { setDefaultResultOrder } from "dns";
 import { logAudit } from "../utils/audit";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
 const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
-
-const passwordRules = z.string().min(8).regex(/[A-Za-z]/, "at least one letter is required")
-.regex(/[0-9]/, "at least one number is required");
 
 
 
