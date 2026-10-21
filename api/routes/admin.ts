@@ -7,14 +7,7 @@ import { User} from "../models/User";
 import { RefreshToken } from "../models/RefreshTokens";
 import { AuditLog } from "../models/AuditLog";
 import { logAudit } from "../utils/audit";
-import { isAscii } from "node:buffer";
 const router = Router();
-
-
-
-router.get("/leaaa", requireAuth, requireRole(["admin","superadmin"]), (req, res) => {
-  res.json({ message: "Welcome to the admin route!" });
-});
 
 
 const activeSchema =z.object({
