@@ -14,6 +14,7 @@ if (!uri.includes("_test")) {
   throw new Error("MONGODB_URI_TEST must point to a database whose name contains _test");
 }
 await mongoose.connect(uri);
+await Promise.all(Object.values(mongoose.models).map((model) => model.init()));
 
 
 });
