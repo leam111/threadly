@@ -33,7 +33,7 @@ describe("guards", () => {
   });
 
   test("the admin route refuses a request with no token", async () => {
-    const res = await request(app).get("/admin/leaaa");
+    const res = await request(app).get("/admin/users");
     expect(res.status).toBe(401);
   });
 
@@ -41,14 +41,14 @@ describe("guards", () => {
 
   test("the admin route lets an admin in", async () => {
     const res = await request(app)
-      .get("/admin/leaaa")
+      .get("/admin/users")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
   });
 
   test("the admin route refuses a member with 403", async () => {
     const res = await request(app)
-      .get("/admin/leaaa")
+      .get("/admin/users")
       .set("Authorization", `Bearer ${memberToken}`);
     expect(res.status).toBe(403);
   });
