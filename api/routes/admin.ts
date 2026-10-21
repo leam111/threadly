@@ -37,6 +37,20 @@ if(!userId){
   return;
 }
 
+const actor = res.locals.user;
+
+// nobody may switch off their own account
+if (actor.id === userId._id.toString() && result.data.isActive === false) {
+  res.status(400).json({ message: "you cannot switch off your own account" });
+  return;
+}
+
+// only a superadmin may change another superadmin
+if (userId.role === "superadmin" && actor.role !== "superadmin") {
+  res.status(403).json({ message: "only a superadmin can change a superadmin" });
+  return;
+}
+
 
   userId.isActive = result.data.isActive;
   await userId.save();
