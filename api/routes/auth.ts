@@ -11,7 +11,7 @@ import { passwordRules } from "../utils/passwordRules";
 
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import { registerLimiter, loginLimiter,RefreshLimiter } from "../middleware/rateLimiters";
+import { registerLimiter, loginLimiter,RefreshLimiter, changePasswordLimiter, deactivateLimiter, logoutOthersLimiter } from "../middleware/rateLimiters";
 import { logAudit } from "../utils/audit";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
@@ -264,7 +264,7 @@ await stored.save();
 });
 
 
-router.post("/logout-others", requireAuth, async (req, res) => {
+router.post("/logout-others", logoutOthersLimiter, requireAuth, async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
   if (typeof cookie !== "string") {
@@ -303,7 +303,7 @@ const changePasswordSchema = z.object({
   newPassword: passwordRules,
 });
 
-router.post("/change-password",requireAuth,async(req,res)=>{
+router.post("/change-password",changePasswordLimiter,requireAuth,async(req,res)=>{
 
   const result = changePasswordSchema.safeParse(req.body);
 
@@ -352,7 +352,7 @@ const deactivateSchema = z.object({
   currentPassword: z.string().min(1)
 });
 
-router.post("/deactivate", requireAuth, async (req, res) => {
+router.post("/deactivate", deactivateLimiter, requireAuth, async (req, res) => {
 const result = deactivateSchema.safeParse(req.body);
   
   if(!result.success){
