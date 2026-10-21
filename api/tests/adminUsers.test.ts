@@ -139,3 +139,76 @@ describe("GET /admin/users", () => {
     expect(page2.body.items[0]._id).not.toBe(page1.body.items[0]._id);
   });
 });
+
+const SAFE_ADMIN_EMAIL = "safe-admin@test.com";
+const SAFE_SUPER_EMAIL = "safe-super@test.com";
+const SAFE_SUPER2_EMAIL = "safe-super2@test.com";
+const SAFE_MEMBER_EMAIL = "safe-member@test.com";
+const SAFE_EMAILS = [SAFE_ADMIN_EMAIL, SAFE_SUPER_EMAIL, SAFE_SUPER2_EMAIL, SAFE_MEMBER_EMAIL];
+
+describe("PATCH /admin/users/:id/active", () => {
+  let adminId = "";
+  let superId2 = "";
+  let memberId = "";
+  let adminToken = "";
+  let superToken = "";
+
+  beforeAll(async () => {
+    await User.deleteMany({ email: { $in: SAFE_EMAILS } });
+    const passwordHash = await bcrypt.hash("abcd1234", 4);
+    const admin = await User.create({ email: SAFE_ADMIN_EMAIL, passwordHash, role: "admin" });
+    const superadmin = await User.create({ email: SAFE_SUPER_EMAIL, passwordHash, role: "superadmin" });
+    const superadmin2 = await User.create({ email: SAFE_SUPER2_EMAIL, passwordHash, role: "superadmin" });
+    const member = await User.create({ email: SAFE_MEMBER_EMAIL, passwordHash });
+    adminId = admin._id.toString();
+    superId2 = superadmin2._id.toString();
+    memberId = member._id.toString();
+    adminToken = tokenFor(admin);
+    superToken = tokenFor(superadmin);
+  });
+
+  afterAll(async () => {
+    await User.deleteMany({ email: { $in: SAFE_EMAILS } });
+  });
+
+  test("refuses to switch off your own account with 400", async () => {
+    const res = await request(app)
+      .patch(`/admin/users/${adminId}/active`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(res.status).toBe(400);
+    const admin = await User.findById(adminId);
+    expect(admin?.isActive).toBe(true);
+  });
+
+  test("refuses an admin who changes a superadmin with 403", async () => {
+    const res = await request(app)
+      .patch(`/admin/users/${superId2}/active`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(res.status).toBe(403);
+    const superadmin2 = await User.findById(superId2);
+    expect(superadmin2?.isActive).toBe(true);
+  });
+
+  test("lets a superadmin switch off another superadmin", async () => {
+    const res = await request(app)
+      .patch(`/admin/users/${superId2}/active`)
+      .set("Authorization", `Bearer ${superToken}`)
+      .send({ isActive: false });
+    expect(res.status).toBe(200);
+    const superadmin2 = await User.findById(superId2);
+    expect(superadmin2?.isActive).toBe(false);
+  });
+
+  test("lets an admin switch off a member", async () => {
+    const res = await request(app)
+      .patch(`/admin/users/${memberId}/active`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(res.status).toBe(200);
+    expect(res.body.isActive).toBe(false);
+    const member = await User.findById(memberId);
+    expect(member?.isActive).toBe(false);
+  });
+});
