@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./api/.env)",
+      "Read(./api/.env.*)",
+      "Edit(./api/.env)"
+    ]
+  }
+}
