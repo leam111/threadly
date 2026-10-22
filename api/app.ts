@@ -5,7 +5,7 @@ import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-
+import wardrobeRoutes from "./routes/wardrobe";
 export const app = express();
 
 app.use(helmet());
@@ -18,6 +18,11 @@ app.use(cookieParser());
 
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
+
+app.use("/wardrobe",wardrobeRoutes);
+
+
+
 
 // no route matched: answer with JSON, not the default HTML page
 app.use((req: Request, res: Response) => {
