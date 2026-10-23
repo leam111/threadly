@@ -37,7 +37,7 @@ const ProfileSchema = new Schema(
       ],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Profile = model("Profile", ProfileSchema);

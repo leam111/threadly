@@ -15,11 +15,9 @@ const EMAILS = [OWNER_EMAIL, STRANGER_EMAIL];
 const MADE_UP_ID = "64b7f0c2a1b2c3d4e5f60718";
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 describe("wardrobe", () => {
@@ -109,7 +107,13 @@ describe("wardrobe", () => {
     });
 
     test("an empty optional text is not saved", async () => {
-      const item = await createItem({ name: "Hat", category: "accessory", brand: "", color: "   ", size: "M" });
+      const item = await createItem({
+        name: "Hat",
+        category: "accessory",
+        brand: "",
+        color: "   ",
+        size: "M",
+      });
       expect(item).not.toHaveProperty("brand");
       expect(item).not.toHaveProperty("color");
       expect(item.size).toBe("M");
@@ -298,7 +302,13 @@ describe("wardrobe", () => {
     });
 
     test("an empty text clears brand, color and size (the fields are removed)", async () => {
-      const item = await createItem({ name: "Shirt", category: "top", brand: "Zara", color: "red", size: "S" });
+      const item = await createItem({
+        name: "Shirt",
+        category: "top",
+        brand: "Zara",
+        color: "red",
+        size: "S",
+      });
 
       const res = await as(ownerToken)
         .patch(`/wardrobe/${item._id}`)
@@ -316,7 +326,12 @@ describe("wardrobe", () => {
     });
 
     test("clearing one field keeps the others", async () => {
-      const item = await createItem({ name: "Shirt", category: "top", brand: "Zara", color: "red" });
+      const item = await createItem({
+        name: "Shirt",
+        category: "top",
+        brand: "Zara",
+        color: "red",
+      });
       const res = await as(ownerToken).patch(`/wardrobe/${item._id}`).send({ brand: "" });
       expect(res.status).toBe(200);
       expect(res.body).not.toHaveProperty("brand");
@@ -332,7 +347,9 @@ describe("wardrobe", () => {
 
     test("a bad category gives 400 invalid input", async () => {
       const item = await createItem();
-      const res = await as(ownerToken).patch(`/wardrobe/${item._id}`).send({ category: "spaceship" });
+      const res = await as(ownerToken)
+        .patch(`/wardrobe/${item._id}`)
+        .send({ category: "spaceship" });
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ message: "invalid input" });
     });

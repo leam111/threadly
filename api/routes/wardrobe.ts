@@ -3,15 +3,19 @@ import { requireAuth } from "../middleware/requireAuth";
 import { writeLimiter } from "../middleware/rateLimiters";
 import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
-import mongoose from "mongoose";
-import { ITEM_CATEGORIES, ITEM_STATUSES, ITEM_NAME_MAX, ITEM_TEXT_MAX } from "../utils/wardrobeOptions";
+import {
+  ITEM_CATEGORIES,
+  ITEM_STATUSES,
+  ITEM_NAME_MAX,
+  ITEM_TEXT_MAX,
+} from "../utils/wardrobeOptions";
 import {
   Actor,
   canViewItem,
   canEditItem,
   canArchiveItem,
   canRestoreItem,
-  findItemFor,
+  lookupItemFor,
 } from "../policies/itemPolicy";
 
 const router = Router();
@@ -20,14 +24,13 @@ const router = Router();
 // it answers 400 or 404 itself and gives null, so the route only has to return
 // a stranger gets the same 404 as an id that does not exist (see itemPolicy.ts)
 async function loadAllowedItem(req: Request, res: Response, allowed: typeof canViewItem) {
-  const id = req.params.id as string;
-  if (!mongoose.isValidObjectId(id)) {
+  const actor: Actor = res.locals.user;
+  const { validId, item } = await lookupItemFor(actor, req.params.id as string);
+  if (!validId) {
     res.status(400).json({ message: "invalid id" });
     return null;
   }
 
-  const actor: Actor = res.locals.user;
-  const item = await findItemFor(actor, id);
   if (!item || !allowed(actor, item)) {
     res.status(404).json({ message: "item not found" });
     return null;
@@ -54,7 +57,9 @@ router.post("/", writeLimiter, requireAuth, async (req, res) => {
   }
 
   // an empty optional text (like brand: "") is simply not saved
-  const fields = Object.fromEntries(Object.entries(result.data).filter(([, value]) => value !== ""));
+  const fields = Object.fromEntries(
+    Object.entries(result.data).filter(([, value]) => value !== ""),
+  );
 
   const item = await WardrobeItem.create({
     ownerId: res.locals.user.id,

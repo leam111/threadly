@@ -12,11 +12,9 @@ const INACTIVE_EMAIL = "list-inactive@test.com";
 const ALL_EMAILS = [MEMBER_EMAIL, ADMIN_EMAIL, DOT_EMAIL, X_EMAIL, INACTIVE_EMAIL];
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 describe("GET /admin/users", () => {
@@ -52,9 +50,7 @@ describe("GET /admin/users", () => {
   });
 
   test("lets an admin in and sends page, limit, total and items", async () => {
-    const res = await request(app)
-      .get("/admin/users")
-      .set("Authorization", `Bearer ${adminToken}`);
+    const res = await request(app).get("/admin/users").set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.page).toBe(1);
     expect(res.body.limit).toBe(20);
@@ -71,9 +67,7 @@ describe("GET /admin/users", () => {
   });
 
   test("never sends passwordHash", async () => {
-    const res = await request(app)
-      .get("/admin/users")
-      .set("Authorization", `Bearer ${adminToken}`);
+    const res = await request(app).get("/admin/users").set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.items.length).toBeGreaterThan(0);
     for (const item of res.body.items) {
@@ -157,8 +151,16 @@ describe("PATCH /admin/users/:id/active", () => {
     await User.deleteMany({ email: { $in: SAFE_EMAILS } });
     const passwordHash = await bcrypt.hash("abcd1234", 4);
     const admin = await User.create({ email: SAFE_ADMIN_EMAIL, passwordHash, role: "admin" });
-    const superadmin = await User.create({ email: SAFE_SUPER_EMAIL, passwordHash, role: "superadmin" });
-    const superadmin2 = await User.create({ email: SAFE_SUPER2_EMAIL, passwordHash, role: "superadmin" });
+    const superadmin = await User.create({
+      email: SAFE_SUPER_EMAIL,
+      passwordHash,
+      role: "superadmin",
+    });
+    const superadmin2 = await User.create({
+      email: SAFE_SUPER2_EMAIL,
+      passwordHash,
+      role: "superadmin",
+    });
     const member = await User.create({ email: SAFE_MEMBER_EMAIL, passwordHash });
     adminId = admin._id.toString();
     superId2 = superadmin2._id.toString();

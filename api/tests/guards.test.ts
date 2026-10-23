@@ -8,11 +8,9 @@ const MEMBER_EMAIL = "guard-member@test.com";
 const ADMIN_EMAIL = "guard-admin@test.com";
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 describe("guards", () => {
@@ -37,12 +35,8 @@ describe("guards", () => {
     expect(res.status).toBe(401);
   });
 
-
-
   test("the admin route lets an admin in", async () => {
-    const res = await request(app)
-      .get("/admin/users")
-      .set("Authorization", `Bearer ${adminToken}`);
+    const res = await request(app).get("/admin/users").set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
   });
 
@@ -52,7 +46,4 @@ describe("guards", () => {
       .set("Authorization", `Bearer ${memberToken}`);
     expect(res.status).toBe(403);
   });
-
-
 });
-

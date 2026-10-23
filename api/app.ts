@@ -10,21 +10,20 @@ import profileRoutes from "./routes/profile";
 export const app = express();
 
 app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 
-app.use("/wardrobe",wardrobeRoutes);
+app.use("/wardrobe", wardrobeRoutes);
 app.use("/profile", profileRoutes);
-
-
-
 
 // no route matched: answer with JSON, not the default HTML page
 app.use((req: Request, res: Response) => {
@@ -33,7 +32,7 @@ app.use((req: Request, res: Response) => {
 
 // 4 arguments tell Express this is the error handler
 // keep the details in the server log, never in the answer
-app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   const status =
     typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
       ? err.status

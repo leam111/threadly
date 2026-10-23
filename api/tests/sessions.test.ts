@@ -2,6 +2,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { Types } from "mongoose";
 import { app } from "../app";
 import { User } from "../models/User";
 import { RefreshToken } from "../models/RefreshTokens";
@@ -15,15 +16,13 @@ const PASSWORD = "abcd1234";
 const NEW_PASSWORD = "efgh5678";
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 // saves a refresh token like login does, and gives back its cookie
-async function startSession(userId: unknown) {
+async function startSession(userId: Types.ObjectId) {
   const token = generateRefreshToken();
   const familyId = crypto.randomUUID();
   await RefreshToken.create({
@@ -191,9 +190,7 @@ describe("session routes", () => {
       expect(await isRevoked(session.tokenHash)).toBe(true);
 
       // the old access token no longer works
-      const me = await request(app)
-        .get("/auth/me")
-        .set("Authorization", `Bearer ${accessToken}`);
+      const me = await request(app).get("/auth/me").set("Authorization", `Bearer ${accessToken}`);
       expect(me.status).toBe(401);
     });
   });

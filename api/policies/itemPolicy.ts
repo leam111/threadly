@@ -42,11 +42,20 @@ export function canRestoreItem(actor: Actor, item: OwnedItem) {
   return isOwner(actor, item);
 }
 
-// find one item for this person: the id AND the owner must match
+// look up one item for this person: the id AND the owner must match
+// the id is checked here, and only here: validId tells the caller if it was valid,
+// item is null when there is no such item or when it is someone else's
+export async function lookupItemFor(actor: Actor, id: string) {
+  if (!mongoose.isValidObjectId(id)) {
+    return { validId: false, item: null } as const;
+  }
+  const item = await WardrobeItem.findOne({ _id: id, ownerId: actor.id });
+  return { validId: true, item } as const;
+}
+
+// find one item for this person
 // gives null when there is no such item, when it is someone else's, or when the id is not valid
 export async function findItemFor(actor: Actor, id: string) {
-  if (!mongoose.isValidObjectId(id)) {
-    return null;
-  }
-  return WardrobeItem.findOne({ _id: id, ownerId: actor.id });
+  const { item } = await lookupItemFor(actor, id);
+  return item;
 }
