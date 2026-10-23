@@ -42,6 +42,7 @@ This is an individual portfolio project, built step by step to learn the full li
 
 **Wardrobe**
 - Add a clothing item: name, category, and optional brand, color and size. Text is trimmed and has a length limit
+- An empty text clears an optional field: in an edit, `brand: ""` removes the brand. When adding an item, an empty optional text is simply not saved. The name can never be empty
 - List your items, newest first, with pages (page size cap of 50) and filters by category and status
 - See, edit, archive and restore one item. There is no delete: archive hides an item, restore brings it back
 - The owner always comes from the token, never from the body or the address. An `ownerId` or `status` sent in the body is ignored
@@ -50,6 +51,7 @@ This is an individual portfolio project, built step by step to learn the full li
 
 **Member profile**
 - Each member has one profile: display name, bio, city, sizes (top, bottom, dress, shoes) and up to 5 styles from a fixed list
+- An empty text (`""`) in an edit clears display name, bio, city or one size
 - You can only read and change your own profile. There is no id in the address
 - Reading before you have a profile gives an empty default and writes nothing. The first change creates the profile
 
@@ -142,4 +144,4 @@ From the api folder:
 ```
    npm test
 ```
-There are 119 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+There are 126 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.

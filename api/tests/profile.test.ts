@@ -156,7 +156,6 @@ describe("member profile", () => {
   test("too long text gives 400 invalid input", async () => {
     const cases = [
       { displayName: "x".repeat(41) },
-      { displayName: "   " },
       { bio: "x".repeat(201) },
       { city: "x".repeat(61) },
       { sizes: { top: "x".repeat(11) } },
@@ -167,6 +166,42 @@ describe("member profile", () => {
       expect(res.body).toEqual({ message: "invalid input" });
     }
     expect(await Profile.countDocuments({ userId: aliceId })).toBe(0);
+  });
+
+  test("an empty text clears displayName, bio and city (the fields are removed)", async () => {
+    await patchAs(aliceToken, { displayName: "Alice", bio: "Hi", city: "Paris", styles: ["boho"] }).expect(200);
+
+    const res = await patchAs(aliceToken, { displayName: "", bio: "   ", city: "" });
+    expect(res.status).toBe(200);
+
+    const saved = await Profile.findOne({ userId: aliceId }).lean();
+    expect(saved).not.toHaveProperty("displayName");
+    expect(saved).not.toHaveProperty("bio");
+    expect(saved).not.toHaveProperty("city");
+    // the rest stays
+    expect(saved?.styles).toEqual(["boho"]);
+  });
+
+  test("an empty size clears that size and keeps the others", async () => {
+    await patchAs(aliceToken, { sizes: { top: "M", shoes: "38" } }).expect(200);
+
+    const res = await patchAs(aliceToken, { sizes: { top: "" } });
+    expect(res.status).toBe(200);
+
+    const saved = await Profile.findOne({ userId: aliceId }).lean();
+    expect(saved?.sizes).not.toHaveProperty("top");
+    expect(saved?.sizes?.shoes).toBe("38");
+  });
+
+  test("clearing and setting in one request both work", async () => {
+    await patchAs(aliceToken, { displayName: "Alice", city: "Paris" }).expect(200);
+
+    await patchAs(aliceToken, { city: "", bio: "New bio" }).expect(200);
+
+    const saved = await Profile.findOne({ userId: aliceId }).lean();
+    expect(saved).not.toHaveProperty("city");
+    expect(saved?.bio).toBe("New bio");
+    expect(saved?.displayName).toBe("Alice");
   });
 
   test("two users never see each other's profile", async () => {

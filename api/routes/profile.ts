@@ -54,7 +54,8 @@ const sizeText = z.string().trim().max(SIZE_MAX).optional();
 
 // every field is optional; Zod drops keys it does not know (like userId)
 const editProfileSchema = z.object({
-  displayName: z.string().trim().min(1).max(DISPLAY_NAME_MAX).optional(),
+  // "" is allowed in every text field: it means "clear this field"
+  displayName: z.string().trim().max(DISPLAY_NAME_MAX).optional(),
   bio: z.string().trim().max(BIO_MAX).optional(),
   city: z.string().trim().max(CITY_MAX).optional(),
   sizes: z
@@ -74,26 +75,47 @@ router.patch("/me", writeLimiter, requireAuth, async (req, res) => {
     return;
   }
 
-  // build the list of changes
-  // sizes are set one by one ("sizes.top"), so changing one size keeps the others
-  const { sizes, ...fields } = result.data;
-  const changes: Record<string, unknown> = { ...fields };
-  for (const key of PROFILE_SIZE_KEYS) {
-    if (sizes?.[key] !== undefined) {
-      changes[`sizes.${key}`] = sizes[key];
+  // build two lists: fields to save ($set) and fields to remove ($unset)
+  // an empty text "" goes to the remove list, so we never save an empty text
+  // sizes are handled one by one ("sizes.top"), so changing one size keeps the others
+  const toSet: Record<string, unknown> = {};
+  const toUnset: Record<string, ""> = {};
+  function addChange(path: string, value: unknown) {
+    if (value === "") {
+      toUnset[path] = "";
+    } else {
+      toSet[path] = value;
     }
   }
 
-  if (Object.keys(changes).length === 0) {
+  const { sizes, ...fields } = result.data;
+  for (const [key, value] of Object.entries(fields)) {
+    addChange(key, value);
+  }
+  for (const key of PROFILE_SIZE_KEYS) {
+    if (sizes?.[key] !== undefined) {
+      addChange(`sizes.${key}`, sizes[key]);
+    }
+  }
+
+  if (Object.keys(toSet).length === 0 && Object.keys(toUnset).length === 0) {
     res.status(400).json({ message: "nothing to change" });
     return;
+  }
+
+  const update: Record<string, unknown> = {};
+  if (Object.keys(toSet).length > 0) {
+    update.$set = toSet;
+  }
+  if (Object.keys(toUnset).length > 0) {
+    update.$unset = toUnset;
   }
 
   const userId = res.locals.user.id;
   // upsert: update my profile, or create it if it does not exist yet
   const profile = await Profile.findOneAndUpdate(
     { userId },
-    { $set: changes },
+    update,
     { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true },
   ).lean();
 

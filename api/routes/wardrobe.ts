@@ -53,9 +53,12 @@ router.post("/", writeLimiter, requireAuth, async (req, res) => {
     return;
   }
 
+  // an empty optional text (like brand: "") is simply not saved
+  const fields = Object.fromEntries(Object.entries(result.data).filter(([, value]) => value !== ""));
+
   const item = await WardrobeItem.create({
     ownerId: res.locals.user.id,
-    ...result.data,
+    ...fields,
   });
 
   res.status(201).json(item);
@@ -149,7 +152,12 @@ router.patch("/:id", writeLimiter, requireAuth, async (req, res) => {
     return;
   }
 
-  item.set(result.data);
+  // an empty text ("") clears brand, color or size: set to undefined,
+  // Mongoose removes the field from the database ($unset) when it saves
+  // (name can never be "": Zod asks for at least 1 character)
+  for (const [key, value] of Object.entries(result.data)) {
+    item.set(key, value === "" ? undefined : value);
+  }
   await item.save();
   res.json(item);
 });

@@ -108,6 +108,17 @@ describe("wardrobe", () => {
       expect(item.name).toBe("Red dress");
     });
 
+    test("an empty optional text is not saved", async () => {
+      const item = await createItem({ name: "Hat", category: "accessory", brand: "", color: "   ", size: "M" });
+      expect(item).not.toHaveProperty("brand");
+      expect(item).not.toHaveProperty("color");
+      expect(item.size).toBe("M");
+
+      const saved = await WardrobeItem.findById(item._id).lean();
+      expect(saved).not.toHaveProperty("brand");
+      expect(saved).not.toHaveProperty("color");
+    });
+
     test("no token gives 401", async () => {
       const res = await request(app).post("/wardrobe").send({ name: "Hat", category: "accessory" });
       expect(res.status).toBe(401);
@@ -284,6 +295,39 @@ describe("wardrobe", () => {
       expect(res.status).toBe(200);
       expect(res.body.size).toBe("M");
       expect(res.body.name).toBe("Shirt");
+    });
+
+    test("an empty text clears brand, color and size (the fields are removed)", async () => {
+      const item = await createItem({ name: "Shirt", category: "top", brand: "Zara", color: "red", size: "S" });
+
+      const res = await as(ownerToken)
+        .patch(`/wardrobe/${item._id}`)
+        .send({ brand: "", color: "   ", size: "" });
+      expect(res.status).toBe(200);
+      expect(res.body).not.toHaveProperty("brand");
+      expect(res.body).not.toHaveProperty("color");
+      expect(res.body).not.toHaveProperty("size");
+      expect(res.body.name).toBe("Shirt");
+
+      const saved = await WardrobeItem.findById(item._id).lean();
+      expect(saved).not.toHaveProperty("brand");
+      expect(saved).not.toHaveProperty("color");
+      expect(saved).not.toHaveProperty("size");
+    });
+
+    test("clearing one field keeps the others", async () => {
+      const item = await createItem({ name: "Shirt", category: "top", brand: "Zara", color: "red" });
+      const res = await as(ownerToken).patch(`/wardrobe/${item._id}`).send({ brand: "" });
+      expect(res.status).toBe(200);
+      expect(res.body).not.toHaveProperty("brand");
+      expect(res.body.color).toBe("red");
+    });
+
+    test("name cannot be cleared: an empty name gives 400 invalid input", async () => {
+      const item = await createItem();
+      const res = await as(ownerToken).patch(`/wardrobe/${item._id}`).send({ name: "" });
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ message: "invalid input" });
     });
 
     test("a bad category gives 400 invalid input", async () => {
