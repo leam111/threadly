@@ -1,11 +1,39 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
 import mongoose from "mongoose";
 import { ITEM_CATEGORIES, ITEM_STATUSES, ITEM_NAME_MAX, ITEM_TEXT_MAX } from "../utils/wardrobeOptions";
+import {
+  Actor,
+  canViewItem,
+  canEditItem,
+  canArchiveItem,
+  canRestoreItem,
+  findItemFor,
+} from "../policies/itemPolicy";
 
 const router = Router();
+
+// checks the id, finds the item for the caller, then asks the policy
+// it answers 400 or 404 itself and gives null, so the route only has to return
+// a stranger gets the same 404 as an id that does not exist (see itemPolicy.ts)
+async function loadAllowedItem(req: Request, res: Response, allowed: typeof canViewItem) {
+  const id = req.params.id as string;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ message: "invalid id" });
+    return null;
+  }
+
+  const actor: Actor = res.locals.user;
+  const item = await findItemFor(actor, id);
+  if (!item || !allowed(actor, item)) {
+    res.status(404).json({ message: "item not found" });
+    return null;
+  }
+
+  return item;
+}
 
 // Zod drops any key not listed here (like ownerId or status),
 // so a client can never choose the owner or the status
@@ -39,6 +67,8 @@ const listItemsQuerySchema = z.object({
   category: z.enum(ITEM_CATEGORIES).optional(),
 });
 
+// the list is always "my items": the owner filter comes from the token,
+// so it does not need the policy (there is no single item to ask about)
 router.get("/", requireAuth, async (req, res) => {
   const result = listItemsQuerySchema.safeParse(req.query);
   if (!result.success) {
@@ -66,15 +96,8 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 router.get("/:id", requireAuth, async (req, res) => {
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
-  }
-
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+  const item = await loadAllowedItem(req, res, canViewItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
 
@@ -82,15 +105,8 @@ router.get("/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/:id/archive", requireAuth, async (req, res) => {
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
-  }
-
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+  const item = await loadAllowedItem(req, res, canArchiveItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
 
@@ -101,15 +117,8 @@ router.patch("/:id/archive", requireAuth, async (req, res) => {
 
 // the opposite of archive: put the item back in the active list
 router.patch("/:id/restore", requireAuth, async (req, res) => {
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
-  }
-
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+  const item = await loadAllowedItem(req, res, canRestoreItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
 
@@ -134,15 +143,8 @@ router.patch("/:id", requireAuth, async (req, res) => {
     return;
   }
 
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
-  }
-
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+  const item = await loadAllowedItem(req, res, canEditItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
 
