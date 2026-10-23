@@ -391,7 +391,7 @@ describe("wardrobe", () => {
       expect(schema.path("status").options.enum).toEqual(ITEM_STATUSES);
     });
 
-    test("the model refuses a brand, color or size longer than 50", () => {
+    test("the model refuses a brand, color or size longer than 50", async () => {
       for (const field of ["brand", "color", "size"]) {
         const item = new WardrobeItem({
           ownerId,
@@ -399,7 +399,7 @@ describe("wardrobe", () => {
           category: "top",
           [field]: "x".repeat(51),
         });
-        expect(item.validateSync()?.errors[field]).toBeDefined();
+        await expect(item.validate()).rejects.toHaveProperty(["errors", field]);
       }
     });
 
