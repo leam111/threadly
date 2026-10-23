@@ -105,6 +105,33 @@ res.json(item);
 
 
 
+router.patch("/:id/archive", requireAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ message: "invalid id" });
+    return;
+  }
+
+  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+
+  if (!item) {
+    res.status(404).json({ message: "item not found" });
+    return;
+  }
+item.status = "archived";
+await item.save();
+res.json(item);
+return ;
+});
+
+
+
+
+
+
+
+
+
 
 
 
