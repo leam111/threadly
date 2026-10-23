@@ -27,7 +27,7 @@ This is an individual portfolio project, built step by step to learn the full li
 **Protection**
 - `requireAuth` guard: checks the token, then checks in the database that the user is still active
 - `requireRole` guard: a simple list of allowed roles, 403 for the wrong role
-- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
+- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving and restoring items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
 - Login does the same bcrypt work for every email, so response time does not reveal which emails exist
 - CORS: only the frontend address may call the API, and cookies are allowed
 - Security headers (helmet)
@@ -142,4 +142,4 @@ From the api folder:
 ```
    npm test
 ```
-There are 114 tests in 12 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+There are 117 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.

@@ -36,6 +36,7 @@ message:{message:"too many refresh attempts , please try again after a minute"
 const changePasswordStore = new MemoryStore();
 const deactivateStore = new MemoryStore();
 const logoutOthersStore = new MemoryStore();
+const writeStore = new MemoryStore();
 
 export const changePasswordLimiter = rateLimit({
 
@@ -73,9 +74,24 @@ message:{message:"too many logout attempts , please try again after 15 minutes"
 
 });
 
+// ONE limiter shared by the wardrobe and profile write routes:
+// 60 changes per 15 minutes per IP, counted together for all of them
+export const writeLimiter = rateLimit({
+
+windowMs : 15 * 60 * 1000,//15 minutes
+limit : 60,
+standardHeaders:"draft-7",
+legacyHeaders:false,
+store:writeStore,
+message:{message:"too many changes , please try again after 15 minutes"
+}
+
+});
+
 // for tests: start every sensitive limiter again from 0
 export async function resetSensitiveLimiters() {
   await changePasswordStore.resetAll();
   await deactivateStore.resetAll();
   await logoutOthersStore.resetAll();
+  await writeStore.resetAll();
 }

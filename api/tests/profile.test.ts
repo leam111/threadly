@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { app } from "../app";
 import { User } from "../models/User";
+import { resetSensitiveLimiters } from "../middleware/rateLimiters";
 import { Profile } from "../models/Profile";
 
 const ALICE_EMAIL = "profile-alice@test.com";
@@ -43,9 +44,12 @@ describe("member profile", () => {
   // every test starts with no profile at all
   beforeEach(async () => {
     await cleanProfiles();
+    // the write limiter counts every PATCH: start each test from 0
+    await resetSensitiveLimiters();
   });
 
   afterAll(async () => {
+    await resetSensitiveLimiters();
     await cleanProfiles();
     await User.deleteMany({ email: { $in: EMAILS } });
   });

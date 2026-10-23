@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { app } from "../app";
 import { User } from "../models/User";
+import { resetSensitiveLimiters } from "../middleware/rateLimiters";
 import { WardrobeItem } from "../models/WardrobeItem";
 import { ITEM_CATEGORIES, ITEM_STATUSES } from "../utils/wardrobeOptions";
 
@@ -67,9 +68,12 @@ describe("wardrobe", () => {
   // every test starts with an empty wardrobe, so counts are exact
   beforeEach(async () => {
     await cleanItems();
+    // the write limiter counts every POST and PATCH: start each test from 0
+    await resetSensitiveLimiters();
   });
 
   afterAll(async () => {
+    await resetSensitiveLimiters();
     await cleanItems();
     await User.deleteMany({ email: { $in: EMAILS } });
   });

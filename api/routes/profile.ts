@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/requireAuth";
+import { writeLimiter } from "../middleware/rateLimiters";
 import { Profile } from "../models/Profile";
 import {
   PROFILE_STYLES,
@@ -66,7 +67,7 @@ const editProfileSchema = z.object({
     .optional(),
 });
 
-router.patch("/me", requireAuth, async (req, res) => {
+router.patch("/me", writeLimiter, requireAuth, async (req, res) => {
   const result = editProfileSchema.safeParse(req.body ?? {});
   if (!result.success) {
     res.status(400).json({ message: "invalid input" });

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
+import { writeLimiter } from "../middleware/rateLimiters";
 import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
 import mongoose from "mongoose";
@@ -45,7 +46,7 @@ const createItemSchema = z.object({
   size: z.string().trim().max(ITEM_TEXT_MAX).optional(),
 });
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", writeLimiter, requireAuth, async (req, res) => {
   const result = createItemSchema.safeParse(req.body);
   if (!result.success) {
     res.status(400).json({ message: "invalid input" });
@@ -104,7 +105,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   res.json(item);
 });
 
-router.patch("/:id/archive", requireAuth, async (req, res) => {
+router.patch("/:id/archive", writeLimiter, requireAuth, async (req, res) => {
   const item = await loadAllowedItem(req, res, canArchiveItem);
   if (!item) {
     return;
@@ -116,7 +117,7 @@ router.patch("/:id/archive", requireAuth, async (req, res) => {
 });
 
 // the opposite of archive: put the item back in the active list
-router.patch("/:id/restore", requireAuth, async (req, res) => {
+router.patch("/:id/restore", writeLimiter, requireAuth, async (req, res) => {
   const item = await loadAllowedItem(req, res, canRestoreItem);
   if (!item) {
     return;
@@ -129,7 +130,7 @@ router.patch("/:id/restore", requireAuth, async (req, res) => {
 
 const editItemSchema = createItemSchema.partial();
 
-router.patch("/:id", requireAuth, async (req, res) => {
+router.patch("/:id", writeLimiter, requireAuth, async (req, res) => {
   // with no body at all, Express 5 leaves req.body undefined:
   // treat it like {} so the answer is "nothing to change", not "invalid input"
   const result = editItemSchema.safeParse(req.body ?? {});
