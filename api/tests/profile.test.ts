@@ -66,14 +66,8 @@ describe("member profile", () => {
       .get("/profile/me")
       .set("Authorization", `Bearer ${aliceToken}`);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      userId: aliceId,
-      displayName: "",
-      bio: "",
-      city: "",
-      sizes: { top: "", bottom: "", dress: "", shoes: "" },
-      styles: [],
-    });
+    // no empty texts, no updatedAt (nothing is stored yet), but sizes and styles are there
+    expect(res.body).toEqual({ userId: aliceId, sizes: {}, styles: [] });
     expect(await Profile.countDocuments({ userId: aliceId })).toBe(0);
   });
 
@@ -93,16 +87,26 @@ describe("member profile", () => {
       styles: ["classic", "y2k"],
     });
     expect(created.status).toBe(200);
-    expect(created.body.displayName).toBe("Alice");
-    expect(created.body.sizes).toEqual({ top: "M", bottom: "", dress: "", shoes: "38" });
+    expect(created.body).toEqual({
+      userId: aliceId,
+      displayName: "Alice",
+      city: "Paris",
+      sizes: { top: "M", shoes: "38" },
+      styles: ["classic", "y2k"],
+      updatedAt: expect.any(String),
+    });
     expect(await Profile.countDocuments({ userId: aliceId })).toBe(1);
 
     const changed = await patchAs(aliceToken, { bio: "I love jeans", sizes: { top: "L" } });
     expect(changed.status).toBe(200);
     expect(changed.body.bio).toBe("I love jeans");
     // changing one size keeps the others
-    expect(changed.body.sizes).toEqual({ top: "L", bottom: "", dress: "", shoes: "38" });
+    expect(changed.body.sizes).toEqual({ top: "L", shoes: "38" });
     expect(changed.body.city).toBe("Paris");
+    // updatedAt moves forward when the profile changes
+    expect(new Date(changed.body.updatedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(created.body.updatedAt).getTime(),
+    );
     // still one profile, not two
     expect(await Profile.countDocuments({ userId: aliceId })).toBe(1);
 
@@ -173,6 +177,12 @@ describe("member profile", () => {
 
     const res = await patchAs(aliceToken, { displayName: "", bio: "   ", city: "" });
     expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      userId: aliceId,
+      sizes: {},
+      styles: ["boho"],
+      updatedAt: expect.any(String),
+    });
 
     const saved = await Profile.findOne({ userId: aliceId }).lean();
     expect(saved).not.toHaveProperty("displayName");
@@ -202,6 +212,18 @@ describe("member profile", () => {
     expect(saved).not.toHaveProperty("city");
     expect(saved?.bio).toBe("New bio");
     expect(saved?.displayName).toBe("Alice");
+  });
+
+  test("the answer never has _id or __v", async () => {
+    const patch = await patchAs(aliceToken, { city: "Paris" });
+    const get = await request(app)
+      .get("/profile/me")
+      .set("Authorization", `Bearer ${aliceToken}`);
+    for (const body of [patch.body, get.body]) {
+      expect(body).not.toHaveProperty("_id");
+      expect(body).not.toHaveProperty("__v");
+      expect(body).toHaveProperty("updatedAt");
+    }
   });
 
   test("two users never see each other's profile", async () => {

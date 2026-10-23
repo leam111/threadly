@@ -24,23 +24,38 @@ type StoredProfile = {
   city?: string | null;
   sizes?: { top?: string | null; bottom?: string | null; dress?: string | null; shoes?: string | null } | null;
   styles?: string[] | null;
+  updatedAt?: Date | null;
 };
 
-// the answer always has the same keys, with "" or [] when a field is empty
+// the answer:
+// - text fields (displayName, bio, city, each size) only when they have a value
+// - sizes is always an object and styles always a list, even when empty
+// - updatedAt when the profile exists in the database; never _id or __v
 function toProfileView(userId: string, profile: StoredProfile | null) {
-  return {
-    userId,
-    displayName: profile?.displayName ?? "",
-    bio: profile?.bio ?? "",
-    city: profile?.city ?? "",
-    sizes: {
-      top: profile?.sizes?.top ?? "",
-      bottom: profile?.sizes?.bottom ?? "",
-      dress: profile?.sizes?.dress ?? "",
-      shoes: profile?.sizes?.shoes ?? "",
-    },
-    styles: profile?.styles ?? [],
-  };
+  const view: Record<string, unknown> = { userId };
+
+  for (const key of ["displayName", "bio", "city"] as const) {
+    const value = profile?.[key];
+    if (value) {
+      view[key] = value;
+    }
+  }
+
+  const sizes: Record<string, string> = {};
+  for (const key of PROFILE_SIZE_KEYS) {
+    const value = profile?.sizes?.[key];
+    if (value) {
+      sizes[key] = value;
+    }
+  }
+  view.sizes = sizes;
+  view.styles = profile?.styles ?? [];
+
+  if (profile?.updatedAt) {
+    view.updatedAt = profile.updatedAt;
+  }
+
+  return view;
 }
 
 router.get("/me", requireAuth, async (req, res) => {

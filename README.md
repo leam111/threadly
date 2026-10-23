@@ -54,6 +54,7 @@ This is an individual portfolio project, built step by step to learn the full li
 - An empty text (`""`) in an edit clears display name, bio, city or one size
 - You can only read and change your own profile. There is no id in the address
 - Reading before you have a profile gives an empty default and writes nothing. The first change creates the profile
+- The answer leaves out empty text fields. `sizes` is always an object and `styles` always a list, even when empty. It includes `updatedAt` once the profile exists, and never `_id`
 
 ### Not built yet
 
@@ -144,4 +145,4 @@ From the api folder:
 ```
    npm test
 ```
-There are 126 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+There are 127 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
