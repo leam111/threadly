@@ -60,7 +60,7 @@ This is an individual portfolio project, built step by step to learn the full li
 
 - Permissions that can be edited at runtime (roles are a simple list for now)
 - Splitting the routes into controller, service and repository layers
-- Swagger docs, migrations, lint rules
+- Swagger docs
 - The React frontend, the AI service, and the whole marketplace
 
 ## Tech
@@ -86,6 +86,8 @@ threadly/
     ├── routes/           auth.ts, admin.ts, wardrobe.ts and profile.ts
     ├── middleware/       guards (requireAuth, requireRole) and rate limiters
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
+    ├── migrations/       database changes, run with migrate-mongo
+    ├── scripts/          the database safety lock, index helpers, the superadmin seed
     ├── utils/            token helpers, password rules, the audit log writer,
     │                     and the allowed values for items and profiles
     └── tests/            Jest and Supertest tests
@@ -130,6 +132,8 @@ You need Node.js 22 and a free MongoDB Atlas cluster.
    MONGODB_URI_TEST=a-second-connection-string-for-tests
    JWT_SECRET=a-long-random-text
    FRONTEND_ORIGIN=http://localhost:5173
+   SEED_SUPERADMIN_EMAIL=only-for-the-seed-script
+   SEED_SUPERADMIN_PASSWORD=only-for-the-seed-script
 ```
    `FRONTEND_ORIGIN` is optional. It falls back to `http://localhost:5173`.
    `MONGODB_URI_TEST` is only for tests. Its database name must contain `_test`, or the tests refuse to start.
@@ -139,10 +143,50 @@ You need Node.js 22 and a free MongoDB Atlas cluster.
 ```
    You should see `Connected to MongoDB`, then `server is running on port 3000`.
 
+## Migrations and the first superadmin
+
+A migration is a small script that changes the database itself (for example an index),
+written down once so every database gets exactly the same change. Each one has an `up`
+(do it) and a `down` (undo it), and can run twice without harm.
+
+| File | What it does |
+|---|---|
+| `migrations/001-wardrobe-owner-index.ts` | Drops the old `ownerId_1` index on wardrobe items and makes sure `ownerId_1_createdAt_-1` exists |
+| `migrations/002-refresh-token-ttl.ts` | A TTL index on `refreshtokens.expiresAt`: MongoDB deletes a refresh token by itself once it has expired |
+
+Why the TTL index is safe: an expired token can never be swapped for a new one (the refresh route checks
+`expiresAt`), so deleting it changes nothing for real users. Reuse detection only needs tokens that are not
+expired yet, and those are never deleted. The one small loss: someone who shows a stolen token *after* it
+expired gets "invalid refresh token" without cancelling its family. That token was useless to them anyway.
+
+**The safety lock.** Every migration and seed command refuses a database whose name has no `_test`,
+unless you add `CONFIRM_REAL_DB=yes`. `USE_TEST_DB=yes` makes them use `MONGODB_URI_TEST` instead of `MONGODB_URI`.
+The connection string must name its database (like `.../threadly?...`).
+
+From the api folder (Git Bash syntax; the variables go before the command):
+```
+   USE_TEST_DB=yes npm run migrate:status      # list migrations on the test database
+   USE_TEST_DB=yes npm run migrate:up          # run the pending ones
+   USE_TEST_DB=yes npm run migrate:down        # undo the LAST one only
+
+   CONFIRM_REAL_DB=yes npm run migrate:status  # the same on the real database (MONGODB_URI)
+   CONFIRM_REAL_DB=yes npm run migrate:up
+```
+The list of migrations already run is kept in the `changelog` collection.
+
+**The first superadmin.** Put `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in `api/.env`, then:
+```
+   CONFIRM_REAL_DB=yes npm run seed:superadmin              # creates the user if the email is new
+   CONFIRM_REAL_DB=yes npm run seed:superadmin -- --promote # makes an existing user superadmin
+```
+The password must follow the normal password rules. The script never prints it. Without `--promote`,
+an existing user is left alone. With `--promote`, they keep their own password. Remove the two
+`SEED_` lines from `.env` afterwards.
+
 ## Run the tests
 
 From the api folder:
 ```
    npm test
 ```
-There are 127 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+There are 154 tests in 15 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
