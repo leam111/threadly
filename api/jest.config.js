@@ -6,4 +6,6 @@ module.exports = {
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
   // the test database is remote (Atlas), so connecting can take more than the default 5 seconds
   testTimeout: 30000,
+  // run at most 2 test files at once, so the connection to Atlas does not drop
+  maxWorkers: 2,
 };
