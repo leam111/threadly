@@ -22,7 +22,12 @@ type StoredProfile = {
   displayName?: string | null;
   bio?: string | null;
   city?: string | null;
-  sizes?: { top?: string | null; bottom?: string | null; dress?: string | null; shoes?: string | null } | null;
+  sizes?: {
+    top?: string | null;
+    bottom?: string | null;
+    dress?: string | null;
+    shoes?: string | null;
+  } | null;
   styles?: string[] | null;
   updatedAt?: Date | null;
 };
@@ -73,9 +78,7 @@ const editProfileSchema = z.object({
   displayName: z.string().trim().max(DISPLAY_NAME_MAX).optional(),
   bio: z.string().trim().max(BIO_MAX).optional(),
   city: z.string().trim().max(CITY_MAX).optional(),
-  sizes: z
-    .object({ top: sizeText, bottom: sizeText, dress: sizeText, shoes: sizeText })
-    .optional(),
+  sizes: z.object({ top: sizeText, bottom: sizeText, dress: sizeText, shoes: sizeText }).optional(),
   styles: z
     .array(z.enum(PROFILE_STYLES))
     .max(STYLES_MAX)
@@ -128,11 +131,12 @@ router.patch("/me", writeLimiter, requireAuth, async (req, res) => {
 
   const userId = res.locals.user.id;
   // upsert: update my profile, or create it if it does not exist yet
-  const profile = await Profile.findOneAndUpdate(
-    { userId },
-    update,
-    { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: true },
-  ).lean();
+  const profile = await Profile.findOneAndUpdate({ userId }, update, {
+    upsert: true,
+    returnDocument: "after",
+    runValidators: true,
+    setDefaultsOnInsert: true,
+  }).lean();
 
   res.json(toProfileView(userId, profile));
 });

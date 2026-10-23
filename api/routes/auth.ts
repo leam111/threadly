@@ -10,19 +10,24 @@ import { passwordRules } from "../utils/passwordRules";
 
 import jwt from "jsonwebtoken";
 import { requireAuth } from "../middleware/requireAuth";
-import { registerLimiter, loginLimiter,RefreshLimiter, changePasswordLimiter, deactivateLimiter, logoutOthersLimiter } from "../middleware/rateLimiters";
+import {
+  registerLimiter,
+  loginLimiter,
+  RefreshLimiter,
+  changePasswordLimiter,
+  deactivateLimiter,
+  logoutOthersLimiter,
+} from "../middleware/rateLimiters";
 import { logAudit } from "../utils/audit";
 const router = Router();
 const fakeHash = bcrypt.hashSync("fakepassword", 12); // fake hash to prevent timing attacks
 
 const REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
 
-
-
-
 const registerSchema = z.object({
   email: z.email(),
-  password: passwordRules});
+  password: passwordRules,
+});
 //1
 router.post("/register", registerLimiter, async (req, res) => {
   const result = registerSchema.safeParse(req.body);
@@ -55,12 +60,7 @@ router.post("/register", registerLimiter, async (req, res) => {
       role: user.role,
     });
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === 11000
-    ) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
       res.status(409).json({ message: "user with this email already exists" });
       return;
     }
@@ -97,16 +97,14 @@ router.post("/login", loginLimiter, async (req, res) => {
   const passwordOk = await bcrypt.compare(password, user.passwordHash);
 
   if (!user || !user.isActive || !passwordOk) {
-
-if(["admin","superadmin"].includes(user.role)){
-  void logAudit({
-    actorId:user._id.toString(),
-    action:"auth.login.failure",
-    details:{reason:user.isActive?"wrong password":"account off"},
-    ip:req.ip,
-  })
-}
-
+    if (["admin", "superadmin"].includes(user.role)) {
+      void logAudit({
+        actorId: user._id.toString(),
+        action: "auth.login.failure",
+        details: { reason: user.isActive ? "wrong password" : "account off" },
+        ip: req.ip,
+      });
+    }
 
     res.status(401).json({ message: "Invalid email or password" });
     return;
@@ -117,11 +115,9 @@ if(["admin","superadmin"].includes(user.role)){
     throw new Error("JWT_SECRET is missing in .env");
   }
 
-  const accessToken = jwt.sign(
-    { sub: user._id.toString(), role: user.role },
-    secret,
-    { expiresIn: "15m" },
-  );
+  const accessToken = jwt.sign({ sub: user._id.toString(), role: user.role }, secret, {
+    expiresIn: "15m",
+  });
 
   const refreshToken = generateRefreshToken();
 
@@ -142,7 +138,6 @@ if(["admin","superadmin"].includes(user.role)){
     path: "/auth",
   });
 
-
   if (["admin", "superadmin"].includes(user.role)) {
     void logAudit({
       actorId: user._id.toString(),
@@ -150,7 +145,6 @@ if(["admin","superadmin"].includes(user.role)){
       ip: req.ip,
     });
   }
-
 
   res.json({
     accessToken,
@@ -170,7 +164,7 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({ id: user._id, email: user.email, role: user.role });
 });
 
-router.post("/refresh",RefreshLimiter, async (req, res) => {
+router.post("/refresh", RefreshLimiter, async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
   if (typeof cookie !== "string") {
@@ -186,17 +180,14 @@ router.post("/refresh",RefreshLimiter, async (req, res) => {
     return;
   }
 
-if (stored.usedAt) {
-  await RefreshToken.updateMany(
-{ familyId: stored.familyId, revokedAt: { $exists: false } },
-    { $set: { revokedAt: new Date() } },
-  );
-  res.status(401).json({ message: "invalid refresh token" });
-  return;
-}
-
-
-
+  if (stored.usedAt) {
+    await RefreshToken.updateMany(
+      { familyId: stored.familyId, revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
 
   if (stored.expiresAt < new Date() || stored.usedAt || stored.revokedAt) {
     res.status(401).json({ message: "invalid refresh token" });
@@ -225,11 +216,9 @@ if (stored.usedAt) {
     throw new Error("JWT_SECRET is missing in .env");
   }
 
-  const accessToken = jwt.sign(
-    { sub: userFound._id.toString(), role: userFound.role },
-    secret,
-    { expiresIn: "15m" },
-  );
+  const accessToken = jwt.sign({ sub: userFound._id.toString(), role: userFound.role }, secret, {
+    expiresIn: "15m",
+  });
 
   res.cookie("refreshToken", newRefreshToken, {
     httpOnly: true,
@@ -242,9 +231,6 @@ if (stored.usedAt) {
   res.json({ accessToken });
 });
 
-
-
-
 router.post("/logout", async (req, res) => {
   const cookie = req.cookies.refreshToken;
 
@@ -253,15 +239,14 @@ router.post("/logout", async (req, res) => {
     const stored = await RefreshToken.findOne({ tokenHash });
 
     if (stored) {
-stored.revokedAt = new Date();
-await stored.save();
-}
+      stored.revokedAt = new Date();
+      await stored.save();
+    }
   }
 
   res.clearCookie("refreshToken", { path: "/auth" });
   res.json({ message: "logged out" });
 });
-
 
 router.post("/logout-others", logoutOthersLimiter, requireAuth, async (req, res) => {
   const cookie = req.cookies.refreshToken;
@@ -278,10 +263,10 @@ router.post("/logout-others", logoutOthersLimiter, requireAuth, async (req, res)
     res.status(401).json({ message: "invalid refresh token" });
     return;
   }
-if (stored.userId.toString() !== res.locals.user.id) {
-  res.status(401).json({ message: "invalid refresh token" });
-  return;
-}
+  if (stored.userId.toString() !== res.locals.user.id) {
+    res.status(401).json({ message: "invalid refresh token" });
+    return;
+  }
 
   await RefreshToken.updateMany(
     {
@@ -295,107 +280,81 @@ if (stored.userId.toString() !== res.locals.user.id) {
   res.json({ message: "other sessions logged out" });
 });
 
-
-
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: passwordRules,
 });
 
-router.post("/change-password",changePasswordLimiter,requireAuth,async(req,res)=>{
-
+router.post("/change-password", changePasswordLimiter, requireAuth, async (req, res) => {
   const result = changePasswordSchema.safeParse(req.body);
 
-if(!result.success){
-  res.status(400).json({message:"invalid input"});
-  return;
-}
+  if (!result.success) {
+    res.status(400).json({ message: "invalid input" });
+    return;
+  }
 
-const user = await User.findById(res.locals.user.id);
+  const user = await User.findById(res.locals.user.id);
 
-if(!user||!user.isActive){
-  res.status(401).json({message:"you need to log in again"});
-return ;
-}
+  if (!user || !user.isActive) {
+    res.status(401).json({ message: "you need to log in again" });
+    return;
+  }
 
+  const passwordOk = await bcrypt.compare(result.data.currentPassword, user.passwordHash);
 
-const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+  if (!passwordOk) {
+    res.status(401).json({ message: "current password is wrong" });
+    return;
+  }
 
+  user.passwordHash = await bcrypt.hash(result.data.newPassword, 12);
+  await user.save();
 
-if(!passwordOk){
-  res.status(401).json({message:"current password is wrong"});
-  return ;
-}
-
-user.passwordHash=await bcrypt.hash(result.data.newPassword,12);
-await user.save();
-
-
-await RefreshToken.updateMany(
+  await RefreshToken.updateMany(
     { userId: user._id, revokedAt: { $exists: false } },
     { $set: { revokedAt: new Date() } },
   );
 
   res.clearCookie("refreshToken", { path: "/auth" });
   res.json({ message: "password changed, please log in again" });
-
-
 });
 
-
-
-
-
-
 const deactivateSchema = z.object({
-  currentPassword: z.string().min(1)
+  currentPassword: z.string().min(1),
 });
 
 router.post("/deactivate", deactivateLimiter, requireAuth, async (req, res) => {
-const result = deactivateSchema.safeParse(req.body);
-  
-  if(!result.success){
-    res.status(400).json({message:"invalid input"});
-    return ;
+  const result = deactivateSchema.safeParse(req.body);
+
+  if (!result.success) {
+    res.status(400).json({ message: "invalid input" });
+    return;
   }
-  
 
-const user = await User.findById(res.locals.user.id);
+  const user = await User.findById(res.locals.user.id);
 
-if(!user||!user.isActive){
-res.status(401).json({ message: "log in again" });
-return;
-}
+  if (!user || !user.isActive) {
+    res.status(401).json({ message: "log in again" });
+    return;
+  }
 
+  const passwordOk = await bcrypt.compare(result.data.currentPassword, user.passwordHash);
 
-const passwordOk = await bcrypt.compare(result.data.currentPassword,user.passwordHash);
+  if (!passwordOk) {
+    res.status(401).json({ message: "password is wrong" });
+    return;
+  }
 
+  user.isActive = false;
+  await user.save();
 
-if(!passwordOk){
-  res.status(401).json({message:"password is wrong"});
-  return;
-}
+  await RefreshToken.updateMany(
+    { userId: user._id, revokedAt: { $exists: false } },
+    { $set: { revokedAt: new Date() } },
+  );
 
-
-user.isActive=false;
-await user.save();
-
-await RefreshToken.updateMany(
-
-{userId:user._id ,revokedAt:{$exists:false}},
-{$set:{revokedAt:new Date()}},
-);
-
-
-res.clearCookie("refreshToken",{path:"/auth"});
-res.json({message:"account deactivated"});
-
+  res.clearCookie("refreshToken", { path: "/auth" });
+  res.json({ message: "account deactivated" });
 });
-
-
-
-
-
-
 
 export default router;

@@ -3,7 +3,12 @@ import { requireAuth } from "../middleware/requireAuth";
 import { writeLimiter } from "../middleware/rateLimiters";
 import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
-import { ITEM_CATEGORIES, ITEM_STATUSES, ITEM_NAME_MAX, ITEM_TEXT_MAX } from "../utils/wardrobeOptions";
+import {
+  ITEM_CATEGORIES,
+  ITEM_STATUSES,
+  ITEM_NAME_MAX,
+  ITEM_TEXT_MAX,
+} from "../utils/wardrobeOptions";
 import {
   Actor,
   canViewItem,
@@ -52,7 +57,9 @@ router.post("/", writeLimiter, requireAuth, async (req, res) => {
   }
 
   // an empty optional text (like brand: "") is simply not saved
-  const fields = Object.fromEntries(Object.entries(result.data).filter(([, value]) => value !== ""));
+  const fields = Object.fromEntries(
+    Object.entries(result.data).filter(([, value]) => value !== ""),
+  );
 
   const item = await WardrobeItem.create({
     ownerId: res.locals.user.id,

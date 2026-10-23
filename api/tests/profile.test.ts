@@ -11,11 +11,9 @@ const BOB_EMAIL = "profile-bob@test.com";
 const EMAILS = [ALICE_EMAIL, BOB_EMAIL];
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 describe("member profile", () => {
@@ -62,9 +60,7 @@ describe("member profile", () => {
   }
 
   test("GET with no profile gives the empty default and writes nothing", async () => {
-    const res = await request(app)
-      .get("/profile/me")
-      .set("Authorization", `Bearer ${aliceToken}`);
+    const res = await request(app).get("/profile/me").set("Authorization", `Bearer ${aliceToken}`);
     expect(res.status).toBe(200);
     // no empty texts, no updatedAt (nothing is stored yet), but sizes and styles are there
     expect(res.body).toEqual({ userId: aliceId, sizes: {}, styles: [] });
@@ -110,9 +106,7 @@ describe("member profile", () => {
     // still one profile, not two
     expect(await Profile.countDocuments({ userId: aliceId })).toBe(1);
 
-    const read = await request(app)
-      .get("/profile/me")
-      .set("Authorization", `Bearer ${aliceToken}`);
+    const read = await request(app).get("/profile/me").set("Authorization", `Bearer ${aliceToken}`);
     expect(read.body).toEqual(changed.body);
   });
 
@@ -173,7 +167,12 @@ describe("member profile", () => {
   });
 
   test("an empty text clears displayName, bio and city (the fields are removed)", async () => {
-    await patchAs(aliceToken, { displayName: "Alice", bio: "Hi", city: "Paris", styles: ["boho"] }).expect(200);
+    await patchAs(aliceToken, {
+      displayName: "Alice",
+      bio: "Hi",
+      city: "Paris",
+      styles: ["boho"],
+    }).expect(200);
 
     const res = await patchAs(aliceToken, { displayName: "", bio: "   ", city: "" });
     expect(res.status).toBe(200);
@@ -216,9 +215,7 @@ describe("member profile", () => {
 
   test("the answer never has _id or __v", async () => {
     const patch = await patchAs(aliceToken, { city: "Paris" });
-    const get = await request(app)
-      .get("/profile/me")
-      .set("Authorization", `Bearer ${aliceToken}`);
+    const get = await request(app).get("/profile/me").set("Authorization", `Bearer ${aliceToken}`);
     for (const body of [patch.body, get.body]) {
       expect(body).not.toHaveProperty("_id");
       expect(body).not.toHaveProperty("__v");
@@ -233,9 +230,7 @@ describe("member profile", () => {
     const alice = await request(app)
       .get("/profile/me")
       .set("Authorization", `Bearer ${aliceToken}`);
-    const bob = await request(app)
-      .get("/profile/me")
-      .set("Authorization", `Bearer ${bobToken}`);
+    const bob = await request(app).get("/profile/me").set("Authorization", `Bearer ${bobToken}`);
 
     expect(alice.body).toMatchObject({ userId: aliceId, displayName: "Alice", city: "Paris" });
     expect(bob.body).toMatchObject({ userId: bobId, displayName: "Bob", city: "Rome" });

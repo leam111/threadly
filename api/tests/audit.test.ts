@@ -13,11 +13,9 @@ const ALL_EMAILS = [ADMIN_EMAIL, OFF_ADMIN_EMAIL, MEMBER_EMAIL];
 const PASSWORD = "abcd1234";
 
 function tokenFor(user: { _id: unknown; role: string }) {
-  return jwt.sign(
-    { sub: String(user._id), role: user.role },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "15m" },
-  );
+  return jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET as string, {
+    expiresIn: "15m",
+  });
 }
 
 // login writes its audit row without waiting, so look a few times
@@ -140,9 +138,7 @@ describe("audit log", () => {
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
 
-    const mine = res.body.items.filter(
-      (item: { targetId: string }) => item.targetId === memberId,
-    );
+    const mine = res.body.items.filter((item: { targetId: string }) => item.targetId === memberId);
     expect(mine).toHaveLength(1);
     expect(mine[0].action).toBe("user.deactivate");
 

@@ -7,7 +7,7 @@ const userSchema = new Schema(
     role: { type: String, enum: ["member", "moderator", "admin", "superadmin"], default: "member" },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const User = model("User", userSchema);

@@ -1,5 +1,10 @@
 import { Schema, model } from "mongoose";
-import { ITEM_CATEGORIES, ITEM_STATUSES, ITEM_NAME_MAX, ITEM_TEXT_MAX } from "../utils/wardrobeOptions";
+import {
+  ITEM_CATEGORIES,
+  ITEM_STATUSES,
+  ITEM_NAME_MAX,
+  ITEM_TEXT_MAX,
+} from "../utils/wardrobeOptions";
 
 const WardrobeItemSchema = new Schema(
   {
@@ -11,7 +16,7 @@ const WardrobeItemSchema = new Schema(
     size: { type: String, trim: true, maxLength: ITEM_TEXT_MAX },
     status: { type: String, default: "active", enum: ITEM_STATUSES },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // when an item is turned into JSON for an answer, leave out __v
