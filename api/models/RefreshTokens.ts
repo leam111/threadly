@@ -12,4 +12,8 @@ const RefreshTokenSchema = new Schema(
   { timestamps: true },
 );
 
+// TTL index: MongoDB deletes a token by itself once expiresAt has passed
+// (the same index as migration 002; declared only here, not also on the field)
+RefreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 export const RefreshToken = model("RefreshToken", RefreshTokenSchema);
