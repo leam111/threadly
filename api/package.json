@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "migrate:up": "tsx node_modules/migrate-mongo/bin/migrate-mongo.js up -f migrate-mongo-config.ts",
+    "migrate:down": "tsx node_modules/migrate-mongo/bin/migrate-mongo.js down -f migrate-mongo-config.ts",
+    "migrate:status": "tsx node_modules/migrate-mongo/bin/migrate-mongo.js status -f migrate-mongo-config.ts",
+    "seed:superadmin": "tsx scripts/seedSuperadmin.ts"
   },
   "keywords": [],
   "author": "",
@@ -40,6 +44,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.13.0",
     "jest": "^30.5.2",
+    "migrate-mongo": "^14.0.7",
     "prettier": "^3.9.10",
     "supertest": "^7.3.1",
     "ts-jest": "^29.4.15",
