@@ -359,6 +359,24 @@ describe("wardrobe", () => {
       }
     });
 
+    test("answers never show __v, but the database still stores it", async () => {
+      const item = await createItem();
+      expect(item).not.toHaveProperty("__v");
+      expect(item.ownerId).toBe(ownerId);
+
+      const one = await as(ownerToken).get(`/wardrobe/${item._id}`);
+      const list = await as(ownerToken).get("/wardrobe");
+      const edited = await as(ownerToken).patch(`/wardrobe/${item._id}`).send({ size: "M" });
+      const archived = await as(ownerToken).patch(`/wardrobe/${item._id}/archive`);
+      for (const body of [one.body, list.body.items[0], edited.body, archived.body]) {
+        expect(body).not.toHaveProperty("__v");
+        expect(body).toHaveProperty("ownerId");
+      }
+
+      const stored = await WardrobeItem.findById(item._id).lean();
+      expect(stored).toHaveProperty("__v");
+    });
+
     test("the model has an owner plus newest-first index for the list", () => {
       const keys = WardrobeItem.schema.indexes().map(([fields]) => fields);
       expect(keys).toContainEqual({ ownerId: 1, createdAt: -1 });
