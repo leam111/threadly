@@ -219,6 +219,23 @@ describe("wardrobe", () => {
       expect((await as(ownerToken).get("/wardrobe?status=archived")).body.total).toBe(0);
     });
 
+    // decided on purpose: repeating archive or restore is not an error
+    test("archive twice and restore twice both answer 200", async () => {
+      const item = await createItem();
+
+      for (let i = 0; i < 2; i++) {
+        const res = await as(ownerToken).patch(`/wardrobe/${item._id}/archive`);
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("archived");
+      }
+
+      for (let i = 0; i < 2; i++) {
+        const res = await as(ownerToken).patch(`/wardrobe/${item._id}/restore`);
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("active");
+      }
+    });
+
     test("a stranger cannot archive: 404 and the item is unchanged", async () => {
       const item = await createItem();
       const before = await WardrobeItem.findById(item._id).lean();
