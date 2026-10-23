@@ -1,0 +1,188 @@
+# Structure run: the plan
+
+This file lets a new chat continue the work.
+A new chat is told: "Read CLAUDE.md and docs/structure-run.md, check git log to see which PRs
+are merged, and continue with the first one that is not."
+
+Rollback point: the tag `pre-structure-run` (main before the run started).
+
+## Goal
+
+Six separate pull requests, merged one after the other. Each PR:
+
+1. gets its own branch from the latest main,
+2. has its own commits and a fully green `npm test` (run from `api/`),
+3. gets a review table (see below),
+4. is merged with `gh pr merge N --merge --delete-branch`.
+
+After each merge: `git switch main`, `git pull`, `npm test` on main (must be green).
+Never start PR N+1 while PR N is red or unmerged.
+
+## The six PRs, in this order
+
+1. `chore/tidy-and-lint`
+2. `feat/migrations-and-seed`
+3. `feat/rbac-permissions`
+4. `refactor/layers`
+5. `feat/wardrobe-2f`
+6. `feat/swagger-docs`
+
+How to know where you are: `git log --oneline --merges main` shows "Merge pull request #N from leam111/<branch>".
+The first branch in the list above with no merge commit is the next one.
+
+## Safety rules (obey always)
+
+1. Rollback point: tag `pre-structure-run` on main (already pushed).
+2. NEVER run migrations, seeds or any script against the real database (`MONGODB_URI`).
+   Only `MONGODB_URI_TEST` (its name must contain `_test`) may be used by the assistant.
+   The owner runs migrations on the real database. Every migrate and seed script must REFUSE
+   to run when the database name does not contain `_test`, unless `CONFIRM_REAL_DB=yes` is set.
+3. Never open, print or edit any `.env` file. Never print a secret. Add files by name, never
+   `git add .`. No force push. Never `gh pr merge --admin`.
+4. NO behavior change in PR 1 to 4 and 6. Every existing route keeps its path, status codes and
+   exact messages ("item not found", "invalid id", "invalid id!", "invalid input", "invalid query",
+   "nothing to change", "Log in first", "Log in again", "You are not allowed here",
+   "Invalid email or password", and the rest). A stranger still gets 404 "item not found", never 403.
+   The 127 existing tests must keep passing. Only PR 3 may add a test-setup helper, and only PR 5
+   may rename status values.
+5. If a test fails and cannot be fixed in two tries, STOP. On ECONNRESET or timeouts, run the failed
+   file alone once; if it fails again, STOP. Never raise timeouts to hide a problem.
+6. If running out of room, STOP right after the last merged PR and say which PR is next.
+   Never leave a PR half merged.
+7. Do not change CLAUDE.md or the .claude folder.
+
+## PR 1: tidy and lint
+
+- `.gitignore` (root and api): `.env` becomes `.env*`, but `.env.example` stays tracked (`!.env.example`).
+- Fix the 2 TypeScript errors: `tests/sessions.test.ts` around line 30, and `utils/passwordRules.ts`
+  line 4 (`z.string(8)` must be `z.string()`). `npx tsc --noEmit` must be clean.
+- The policy code checks the id twice (`loadAllowedItem` and `findItemFor`). Check it once.
+  Keep every exported function and the policy tests unchanged.
+- ESLint (typescript-eslint) and Prettier in `api/`. Scripts: `lint`, `lint:fix`, `format`,
+  `format:check`. Reasonable rules: fix real problems, turn noisy style rules off.
+  Do not format node_modules or the README.
+- Two separate commits: tooling and config first, then "style: format the code with prettier"
+  that changes ONLY formatting (prove it with `git diff -w` and a green `npm test`).
+
+## PR 2: migrations and seed
+
+- migrate-mongo in `api/`: folder `api/migrations`, scripts `migrate:up`, `migrate:down`,
+  `migrate:status`. Every migration has up and down and is idempotent. Obey safety rule 2.
+- 001: drop the old index `ownerId_1` on `wardrobeitems` if it exists, and make sure the compound
+  index `ownerId_1_createdAt_-1` exists.
+- 002: a TTL index on `refreshtokens.expiresAt` (expireAfterSeconds 0). Also declare it in the
+  RefreshToken model, with no duplicate or conflicting index. Explain why it is safe.
+- Seed script `api/scripts/seedSuperadmin.ts`: reads `SEED_SUPERADMIN_EMAIL` and
+  `SEED_SUPERADMIN_PASSWORD`, refuses when missing or when the password breaks the rules, creates a
+  superadmin only if the email does not exist, promotes an existing user only with `--promote`,
+  never prints the password. Add `.env.example` with variable NAMES only. Obey safety rule 2.
+- Tests on the test database: migrations up and down, and the seed logic. README: how to run them.
+
+## PR 3: permissions (spec section 4.2)
+
+- Collections: Permissions (name like "user:ban", description), Roles (name, description, isSystem),
+  RolePermissions (role name + permission name, unique pair). A user keeps ONE role (a role name).
+  Many-to-many UserRoles is NOT built now. Write this decision in the README.
+- Migration 003 seeds the 16 permissions and the 5 roles (guest, member, moderator, admin, superadmin):
+  - listing:read (everyone)
+  - wardrobe:manage_own, listing:create, listing:update_own, order:create, review:create,
+    report:create (member and up)
+  - listing:hide, listing:remove, report:resolve (moderator and up)
+  - user:view, user:ban, order:refund, audit:view (admin and up)
+  - role:assign, permission:edit (superadmin only)
+  Each role includes everything below it. Idempotent (upsert).
+- Guard `requirePermission(name)` after requireAuth: reads the permissions of the user's role from
+  the database on every request (no cache). 403 "You are not allowed here" when missing.
+  FAIL CLOSED when the role does not exist. Replace requireRole everywhere:
+  GET /admin/users needs user:view, PATCH /admin/users/:id/active needs user:ban,
+  GET /admin/audit needs audit:view, wardrobe routes need wardrobe:manage_own.
+  Profile routes stay requireAuth only. Remove requireRole if nothing uses it.
+- Test helper `tests/helpers/rbac.ts` seeds roles and permissions in the test database (idempotent),
+  called from `tests/setup.ts`. The existing tests must pass with no other change.
+- New admin routes, all audited (actions role.assign and permission.edit, with actor, target,
+  details and ip):
+  - GET /admin/roles and GET /admin/permissions (permission:edit).
+  - PUT /admin/roles/:name/permissions (permission:edit), body `{ permissions: [names] }` replaces
+    the list. Unknown permission: 400 "invalid input". Unknown role: 404 "role not found".
+    The superadmin role can never lose role:assign or permission:edit:
+    400 "superadmin must keep role:assign and permission:edit".
+  - PATCH /admin/users/:id/role (role:assign), body `{ role }`. Bad id: 400 "invalid id!".
+    Unknown user: 404 "user not found". Unknown role: 400 "invalid input".
+    Your own role: 400 "you cannot change your own role".
+    Only a superadmin can give or take the superadmin role: 403 "only a superadmin can change a superadmin".
+    The last active superadmin cannot be demoted: 400 "there must be at least one superadmin".
+    Also refuse switching off the last active superadmin in PATCH /admin/users/:id/active with the same 400.
+- Tests for every rule, including: after the permission list of the admin role changes, an admin is
+  refused at once. Prove the key tests can fail. README: the permission matrix.
+
+## PR 4: layers (controllers, services, repositories, DTOs)
+
+- Folders `api/controllers`, `api/services`, `api/repositories`, `api/dtos`. `api/routes` stays as
+  thin routers. Do NOT move files into a src folder.
+- Routes only connect middleware to controllers. Controllers only read the request, call a service
+  and send the answer. Services hold the business rules and know nothing about Express.
+  Repositories contain ALL Mongoose queries (the only place that imports models, apart from models,
+  seeds and migrations). DTOs are Zod input schemas plus small output mappers (like toItemDto).
+- Simple dependency injection: services receive repositories through a factory
+  (`makeItemService({ items })`), assembled in `api/container.ts`.
+- Services report errors with a small `AppError(status, message)`. The error handler sends the
+  message of an AppError and keeps its safe answers for everything else.
+- ONE module per commit, in this order: profile, wardrobe (keep itemPolicy and its exports), admin,
+  auth. Full `npm test` after EACH commit. No new behavior. README: a short "how a request flows" diagram.
+
+## PR 5: richer wardrobe 2F (in the layers from PR 4)
+
+- Model, all optional: subCategory (trimmed, max 50); colors (list, max 5, each trimmed lowercase
+  1 to 30, unique); pattern (trimmed, max 30); material (max 50); season (spring, summer, autumn,
+  winter or all); styleTags (list, max 10, each trimmed lowercase 1 to 30, unique); condition
+  (new_with_tags, like_new, very_good, good or fair); purchasePrice (0 to 1000000, 2 decimals);
+  notes (max 500); wearCount (default 0, server-managed); lastWornAt (server-managed);
+  isDeleted (default false) and deletedAt.
+- status becomes in_closet (default), listed, sold or archived. The API cannot set listed or sold.
+  Archive sets archived, restore sets in_closet.
+- POST and PATCH accept the new fields with Zod. Unknown keys are dropped. An empty text clears an
+  optional text field and an empty list clears a list. wearCount, lastWornAt, status, isDeleted and
+  ownerId are NEVER accepted from the body.
+- DELETE /wardrobe/:id is a SOFT delete (isDeleted true, deletedAt now). Owner only. A stranger or an
+  already deleted item gets 404 "item not found". Answer 200 `{ message: "item deleted" }`.
+  A deleted item disappears from lists and every route (404) and can no longer be edited, archived
+  or restored. Never delete physically.
+- POST /wardrobe/:id/wear: owner only, wearCount +1, lastWornAt now, answer the item.
+- GET /wardrobe filters (Zod, combined freely inside the owner filter): status, category, color,
+  season, styleTag, notWornDays (30, 60 or 90: lastWornAt older than that, or never worn).
+  Deleted items never appear. Pages and the cap of 50 stay.
+- The item answer hides __v, isDeleted and deletedAt.
+- Index on ownerId + status. Migration 004 (up and down, idempotent): status "active" becomes
+  "in_closet"; isDeleted false and wearCount 0 where missing.
+- Tests for every field and rule, the stranger tests (404 and updatedAt unchanged for edit, delete
+  and wear), soft delete invisibility, the notWornDays filter, the new status values, and migration
+  004 up and down. Change older tests and the README only where "active" is renamed to "in_closet".
+  Prove the stranger delete test and the soft delete test can fail.
+
+## PR 6: Swagger
+
+- swagger-ui-express and one OpenAPI 3 file describing EVERY route (auth, admin users, active, audit,
+  roles, permissions, user role, wardrobe, profile): request bodies, responses with the real
+  messages, the bearer token, the refresh cookie, and the permission each route needs.
+  A test checks that the JSON loads and lists every path.
+- Serve /docs and /docs.json ONLY when NODE_ENV is not production. Loosen helmet only for /docs.
+- README: how to open /docs and try a route with a token.
+
+## Review table before every merge (check, result, note)
+
+1. No .env or secret in the diff or file list.
+2. Every item lookup is still scoped by the owner from the token.
+3. Messages unchanged.
+4. Every refusal answers, then returns.
+5. No query outside the repositories (after PR 4).
+6. Migrations and seeds refuse the real database without the flag (after PR 2).
+7. Any BLOCKER (security or data bug) means: do NOT merge, stop and report.
+
+## Final report (after the last merge)
+
+1. A table of the six PRs: number, title, merge commit, tests before and after.
+2. The final test count and a green `npm test` on main.
+3. The exact commands the owner must run on the real database, in order, with `CONFIRM_REAL_DB`,
+   to run `migrate:up` and the superadmin seed.
+4. Every question or decision for the owner.
+5. What is left, or what was changed on purpose.
