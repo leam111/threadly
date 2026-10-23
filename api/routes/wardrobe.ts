@@ -1,140 +1,142 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
-import {z}from "zod";
+import { writeLimiter } from "../middleware/rateLimiters";
+import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
 import mongoose from "mongoose";
+import { ITEM_CATEGORIES, ITEM_STATUSES, ITEM_NAME_MAX, ITEM_TEXT_MAX } from "../utils/wardrobeOptions";
+import {
+  Actor,
+  canViewItem,
+  canEditItem,
+  canArchiveItem,
+  canRestoreItem,
+  findItemFor,
+} from "../policies/itemPolicy";
 
+const router = Router();
 
+// checks the id, finds the item for the caller, then asks the policy
+// it answers 400 or 404 itself and gives null, so the route only has to return
+// a stranger gets the same 404 as an id that does not exist (see itemPolicy.ts)
+async function loadAllowedItem(req: Request, res: Response, allowed: typeof canViewItem) {
+  const id = req.params.id as string;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ message: "invalid id" });
+    return null;
+  }
 
-const router  = Router();
+  const actor: Actor = res.locals.user;
+  const item = await findItemFor(actor, id);
+  if (!item || !allowed(actor, item)) {
+    res.status(404).json({ message: "item not found" });
+    return null;
+  }
 
-
-const createItemSchema = z.object({
-name:z.string().trim().min(1).max(100),
-category: z.enum(["top","bottom","dress","outerwear","shoes","accessory","other"]),
-brand:z.string().trim().max(50).optional(),
-color:z.string().trim().max(50).optional(),
-size:z.string().trim().max(50).optional()
-
-
-});
-
-router.post("/",requireAuth,async(req,res)=>{
-const result = createItemSchema.safeParse(req.body);
-
-if(!result.success){
-res.status(400).json({message:"invalid input"});
-return;
+  return item;
 }
-const item = await WardrobeItem.create({
-ownerId : res.locals.user.id,
-...result.data,
 
+// Zod drops any key not listed here (like ownerId or status),
+// so a client can never choose the owner or the status
+const createItemSchema = z.object({
+  name: z.string().trim().min(1).max(ITEM_NAME_MAX),
+  category: z.enum(ITEM_CATEGORIES),
+  brand: z.string().trim().max(ITEM_TEXT_MAX).optional(),
+  color: z.string().trim().max(ITEM_TEXT_MAX).optional(),
+  size: z.string().trim().max(ITEM_TEXT_MAX).optional(),
 });
 
-res.status(201).json(item);
-return;
+router.post("/", writeLimiter, requireAuth, async (req, res) => {
+  const result = createItemSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ message: "invalid input" });
+    return;
+  }
 
+  // an empty optional text (like brand: "") is simply not saved
+  const fields = Object.fromEntries(Object.entries(result.data).filter(([, value]) => value !== ""));
 
+  const item = await WardrobeItem.create({
+    ownerId: res.locals.user.id,
+    ...fields,
+  });
+
+  res.status(201).json(item);
 });
-
-
-
-
-
-
 
 const listItemsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).default(20),
- status: z.enum(["active", "archived"]).optional(),
-  category: z.enum(["top","bottom","dress","outerwear","shoes","accessory","other"]).optional(),
+  status: z.enum(ITEM_STATUSES).optional(),
+  category: z.enum(ITEM_CATEGORIES).optional(),
 });
+
+// the list is always "my items": the owner filter comes from the token,
+// so it does not need the policy (there is no single item to ask about)
 router.get("/", requireAuth, async (req, res) => {
   const result = listItemsQuerySchema.safeParse(req.query);
   if (!result.success) {
     res.status(400).json({ message: "invalid query" });
     return;
   }
+
   const page = result.data.page;
   const limit = Math.min(result.data.limit, 50);
-  const filter: Record<string, unknown> = {ownerId:res.locals.user.id};
-if (result.data.status) {
-  filter.status = result.data.status;
-}
-if (result.data.category) {
-  filter.category = result.data.category;
-}
-const total = await WardrobeItem.countDocuments(filter);
-const items = await WardrobeItem.find(filter)
-  .sort({ createdAt: -1 })
-  .skip((page - 1) * limit)
-  .limit(limit);
-
-  res.json({ page, limit, total,items });
-});
-
-
-
-
-
-
-
-
-router.get("/:id",requireAuth,async(req,res)=>{
-
-const id = req.params.id;
-if (!mongoose.isValidObjectId(id)) {
-  res.status(400).json({ message: "invalid id" });
-  return;
-}
-
-const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
-
-if(!item){
-  res.status(404).json({message:"item not found"});
-  return;
-}
-
-
-res.json(item);
-
-});
-
-
-
-
-
-router.patch("/:id/archive", requireAuth, async (req, res) => {
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
+  const filter: Record<string, unknown> = { ownerId: res.locals.user.id };
+  if (result.data.status) {
+    filter.status = result.data.status;
+  }
+  if (result.data.category) {
+    filter.category = result.data.category;
   }
 
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+  const total = await WardrobeItem.countDocuments(filter);
+  const items = await WardrobeItem.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit);
 
+  res.json({ page, limit, total, items });
+});
+
+router.get("/:id", requireAuth, async (req, res) => {
+  const item = await loadAllowedItem(req, res, canViewItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
-item.status = "archived";
-await item.save();
-res.json(item);
-return ;
+
+  res.json(item);
 });
 
+router.patch("/:id/archive", writeLimiter, requireAuth, async (req, res) => {
+  const item = await loadAllowedItem(req, res, canArchiveItem);
+  if (!item) {
+    return;
+  }
 
+  item.status = "archived";
+  await item.save();
+  res.json(item);
+});
 
+// the opposite of archive: put the item back in the active list
+router.patch("/:id/restore", writeLimiter, requireAuth, async (req, res) => {
+  const item = await loadAllowedItem(req, res, canRestoreItem);
+  if (!item) {
+    return;
+  }
 
-
-
-
+  item.status = "active";
+  await item.save();
+  res.json(item);
+});
 
 const editItemSchema = createItemSchema.partial();
 
-router.patch("/:id", requireAuth, async (req, res) => {
-  const result = editItemSchema.safeParse(req.body);
+router.patch("/:id", writeLimiter, requireAuth, async (req, res) => {
+  // with no body at all, Express 5 leaves req.body undefined:
+  // treat it like {} so the answer is "nothing to change", not "invalid input"
+  const result = editItemSchema.safeParse(req.body ?? {});
   if (!result.success) {
     res.status(400).json({ message: "invalid input" });
     return;
@@ -145,28 +147,19 @@ router.patch("/:id", requireAuth, async (req, res) => {
     return;
   }
 
-  const id = req.params.id;
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ message: "invalid id" });
-    return;
-  }
-
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
-
+  const item = await loadAllowedItem(req, res, canEditItem);
   if (!item) {
-    res.status(404).json({ message: "item not found" });
     return;
   }
 
-  item.set(result.data);
+  // an empty text ("") clears brand, color or size: set to undefined,
+  // Mongoose removes the field from the database ($unset) when it saves
+  // (name can never be "": Zod asks for at least 1 character)
+  for (const [key, value] of Object.entries(result.data)) {
+    item.set(key, value === "" ? undefined : value);
+  }
   await item.save();
   res.json(item);
 });
-
-
-
-
-
-
 
 export default router;

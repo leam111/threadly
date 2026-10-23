@@ -9,7 +9,8 @@ This is an individual portfolio project, built step by step to learn the full li
 
 - Phase 0: setup (done)
 - Phase 1: authentication, roles and accounts (done, with automated tests)
-- Phase 2 and later: not started
+- Phase 2: the wardrobe and the member profile (done, with automated tests)
+- Phase 3 and later: not started
 
 ### What works today
 
@@ -26,7 +27,7 @@ This is an individual portfolio project, built step by step to learn the full li
 **Protection**
 - `requireAuth` guard: checks the token, then checks in the database that the user is still active
 - `requireRole` guard: a simple list of allowed roles, 403 for the wrong role
-- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
+- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving and restoring items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
 - Login does the same bcrypt work for every email, so response time does not reveal which emails exist
 - CORS: only the frontend address may call the API, and cookies are allowed
 - Security headers (helmet)
@@ -38,6 +39,22 @@ This is an individual portfolio project, built step by step to learn the full li
 - Switch a user on or off. Switching off also cancels that user's refresh tokens
 - Safety rules: nobody can switch off their own account, and only a superadmin can change a superadmin
 - Audit log: records admin user switches and admin logins (success and failure). Read-only, newest first, with pages and a page size cap of 50
+
+**Wardrobe**
+- Add a clothing item: name, category, and optional brand, color and size. Text is trimmed and has a length limit
+- An empty text clears an optional field: in an edit, `brand: ""` removes the brand. When adding an item, an empty optional text is simply not saved. The name can never be empty
+- List your items, newest first, with pages (page size cap of 50) and filters by category and status
+- See, edit, archive and restore one item. There is no delete: archive hides an item, restore brings it back
+- The owner always comes from the token, never from the body or the address. An `ownerId` or `status` sent in the body is ignored
+- An item policy (`policies/itemPolicy.ts`) decides in one place who may see, edit, archive or restore an item. For now, only the owner
+- A stranger asking for someone else's item gets 404 `item not found`, the same answer as for an item that does not exist, so nobody learns which items exist
+
+**Member profile**
+- Each member has one profile: display name, bio, city, sizes (top, bottom, dress, shoes) and up to 5 styles from a fixed list
+- An empty text (`""`) in an edit clears display name, bio, city or one size
+- You can only read and change your own profile. There is no id in the address
+- Reading before you have a profile gives an empty default and writes nothing. The first change creates the profile
+- The answer leaves out empty text fields. `sizes` is always an object and `styles` always a list, even when empty. It includes `updatedAt` once the profile exists, and never `_id`
 
 ### Not built yet
 
@@ -65,10 +82,12 @@ threadly/
     ├── index.ts          starts the server
     ├── app.ts            builds the app: middleware, routes, 404 and error handler
     ├── db.ts             connects to MongoDB
-    ├── models/           data plans: User, RefreshTokens, AuditLog
-    ├── routes/           auth.ts and admin.ts
+    ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, Profile
+    ├── routes/           auth.ts, admin.ts, wardrobe.ts and profile.ts
     ├── middleware/       guards (requireAuth, requireRole) and rate limiters
-    ├── utils/            token helpers, password rules and the audit log writer
+    ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
+    ├── utils/            token helpers, password rules, the audit log writer,
+    │                     and the allowed values for items and profiles
     └── tests/            Jest and Supertest tests
 ```
 
@@ -87,6 +106,14 @@ threadly/
 | PATCH | `/admin/users/:id/active` | admin, superadmin | Switch a user on or off |
 | GET | `/admin/users` | admin, superadmin | List users. Query: page, limit, email, role, status |
 | GET | `/admin/audit` | admin, superadmin | Read the audit log. Query: page, limit, action |
+| POST | `/wardrobe` | logged in | Add an item to my wardrobe |
+| GET | `/wardrobe` | logged in | List my items. Query: page, limit, category, status |
+| GET | `/wardrobe/:id` | the owner | See one of my items |
+| PATCH | `/wardrobe/:id` | the owner | Change name, category, brand, color or size |
+| PATCH | `/wardrobe/:id/archive` | the owner | Archive an item |
+| PATCH | `/wardrobe/:id/restore` | the owner | Put an archived item back to active |
+| GET | `/profile/me` | logged in | Read my profile (an empty default if I have none yet) |
+| PATCH | `/profile/me` | logged in | Create or change my profile |
 
 ## Run it locally
 
@@ -118,4 +145,4 @@ From the api folder:
 ```
    npm test
 ```
-There are 53 tests in 9 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token and audit row they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+There are 127 tests in 13 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.

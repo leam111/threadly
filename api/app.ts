@@ -6,6 +6,7 @@ import adminRoutes from "./routes/admin";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import wardrobeRoutes from "./routes/wardrobe";
+import profileRoutes from "./routes/profile";
 export const app = express();
 
 app.use(helmet());
@@ -20,6 +21,7 @@ app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 
 app.use("/wardrobe",wardrobeRoutes);
+app.use("/profile", profileRoutes);
 
 
 
