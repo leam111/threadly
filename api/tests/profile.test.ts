@@ -241,13 +241,13 @@ describe("member profile", () => {
     expect(bob.body).toMatchObject({ userId: bobId, displayName: "Bob", city: "Rome" });
   });
 
-  test("the model refuses repeated styles and more than 5 styles", () => {
+  test("the model refuses repeated styles and more than 5 styles", async () => {
     const repeated = new Profile({ userId: aliceId, styles: ["boho", "boho"] });
     const tooMany = new Profile({
       userId: aliceId,
       styles: ["classic", "streetwear", "y2k", "preppy", "boho", "minimal"],
     });
-    expect(repeated.validateSync()?.errors.styles).toBeDefined();
-    expect(tooMany.validateSync()?.errors.styles).toBeDefined();
+    await expect(repeated.validate()).rejects.toHaveProperty("errors.styles");
+    await expect(tooMany.validate()).rejects.toHaveProperty("errors.styles");
   });
 });
