@@ -2,6 +2,7 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { Types } from "mongoose";
 import { app } from "../app";
 import { User } from "../models/User";
 import { RefreshToken } from "../models/RefreshTokens";
@@ -23,7 +24,7 @@ function tokenFor(user: { _id: unknown; role: string }) {
 }
 
 // saves a refresh token like login does, and gives back its cookie
-async function startSession(userId: unknown) {
+async function startSession(userId: Types.ObjectId) {
   const token = generateRefreshToken();
   const familyId = crypto.randomUUID();
   await RefreshToken.create({
