@@ -2,7 +2,6 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
-import { AuditLog } from "../models/AuditLog";
 import { RefreshToken } from "../models/RefreshTokens";
 import { generateRefreshToken, hashToken } from "../utils/tokens";
 import crypto from "crypto";
