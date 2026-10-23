@@ -131,10 +131,37 @@ return ;
 
 
 
+const editItemSchema = createItemSchema.partial();
 
+router.patch("/:id", requireAuth, async (req, res) => {
+  const result = editItemSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ message: "invalid input" });
+    return;
+  }
 
+  if (Object.keys(result.data).length === 0) {
+    res.status(400).json({ message: "nothing to change" });
+    return;
+  }
 
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ message: "invalid id" });
+    return;
+  }
 
+  const item = await WardrobeItem.findOne({ _id: id, ownerId: res.locals.user.id });
+
+  if (!item) {
+    res.status(404).json({ message: "item not found" });
+    return;
+  }
+
+  item.set(result.data);
+  await item.save();
+  res.json(item);
+});
 
 
 
