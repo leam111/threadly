@@ -21,7 +21,9 @@ export function requirePermission(name: PermissionName) {
       const row = role ? await RolePermission.exists({ role: user.role, permission: name }) : null;
       allowed = row !== null;
     } catch (error) {
-      console.error("permission check failed ", error);
+      // the message only: never the whole error, the request or the token
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.error("permission check failed:", message);
     }
 
     if (!allowed) {
