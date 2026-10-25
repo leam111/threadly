@@ -97,9 +97,9 @@ The first branch in the list above with no merge commit is the next one.
 - Collections: Permissions (name like "user:ban", description), Roles (name, description, isSystem),
   RolePermissions (role name + permission name, unique pair). A user keeps ONE role (a role name).
   Many-to-many UserRoles is NOT built now. Write this decision in the README.
-- Migration 003 seeds the 16 permissions and the 5 roles (guest, member, moderator, admin, superadmin):
-  - listing:read (everyone)
-  - wardrobe:manage_own, listing:create, listing:update_own, order:create, review:create,
+- Migration 003 seeds the 16 permissions and the 4 stored roles (member, moderator, admin, superadmin).
+  "Guest" is NOT stored: a guest is a visitor with no login, and public routes need no login.
+  - listing:read, wardrobe:manage_own, listing:create, listing:update_own, order:create, review:create,
     report:create (member and up)
   - listing:hide, listing:remove, report:resolve (moderator and up)
   - user:view, user:ban, order:refund, audit:view (admin and up)
