@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
+import { requirePermission } from "../middleware/requirePermission";
 import { writeLimiter } from "../middleware/rateLimiters";
 import { z } from "zod";
 import { WardrobeItem } from "../models/WardrobeItem";
@@ -19,6 +20,9 @@ import {
 } from "../policies/itemPolicy";
 
 const router = Router();
+
+// every wardrobe route needs this permission (members and up have it)
+const canManageWardrobe = requirePermission("wardrobe:manage_own");
 
 // checks the id, finds the item for the caller, then asks the policy
 // it answers 400 or 404 itself and gives null, so the route only has to return
@@ -49,7 +53,7 @@ const createItemSchema = z.object({
   size: z.string().trim().max(ITEM_TEXT_MAX).optional(),
 });
 
-router.post("/", writeLimiter, requireAuth, async (req, res) => {
+router.post("/", writeLimiter, requireAuth, canManageWardrobe, async (req, res) => {
   const result = createItemSchema.safeParse(req.body);
   if (!result.success) {
     res.status(400).json({ message: "invalid input" });
@@ -78,7 +82,7 @@ const listItemsQuerySchema = z.object({
 
 // the list is always "my items": the owner filter comes from the token,
 // so it does not need the policy (there is no single item to ask about)
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, canManageWardrobe, async (req, res) => {
   const result = listItemsQuerySchema.safeParse(req.query);
   if (!result.success) {
     res.status(400).json({ message: "invalid query" });
@@ -104,7 +108,7 @@ router.get("/", requireAuth, async (req, res) => {
   res.json({ page, limit, total, items });
 });
 
-router.get("/:id", requireAuth, async (req, res) => {
+router.get("/:id", requireAuth, canManageWardrobe, async (req, res) => {
   const item = await loadAllowedItem(req, res, canViewItem);
   if (!item) {
     return;
@@ -113,7 +117,7 @@ router.get("/:id", requireAuth, async (req, res) => {
   res.json(item);
 });
 
-router.patch("/:id/archive", writeLimiter, requireAuth, async (req, res) => {
+router.patch("/:id/archive", writeLimiter, requireAuth, canManageWardrobe, async (req, res) => {
   const item = await loadAllowedItem(req, res, canArchiveItem);
   if (!item) {
     return;
@@ -125,7 +129,7 @@ router.patch("/:id/archive", writeLimiter, requireAuth, async (req, res) => {
 });
 
 // the opposite of archive: put the item back in the active list
-router.patch("/:id/restore", writeLimiter, requireAuth, async (req, res) => {
+router.patch("/:id/restore", writeLimiter, requireAuth, canManageWardrobe, async (req, res) => {
   const item = await loadAllowedItem(req, res, canRestoreItem);
   if (!item) {
     return;
@@ -138,7 +142,7 @@ router.patch("/:id/restore", writeLimiter, requireAuth, async (req, res) => {
 
 const editItemSchema = createItemSchema.partial();
 
-router.patch("/:id", writeLimiter, requireAuth, async (req, res) => {
+router.patch("/:id", writeLimiter, requireAuth, canManageWardrobe, async (req, res) => {
   // with no body at all, Express 5 leaves req.body undefined:
   // treat it like {} so the answer is "nothing to change", not "invalid input"
   const result = editItemSchema.safeParse(req.body ?? {});

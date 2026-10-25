@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireRole } from "../middleware/requireRole";
+import { requirePermission } from "../middleware/requirePermission";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { User } from "../models/User";
@@ -13,64 +13,59 @@ const activeSchema = z.object({
   isActive: z.boolean(),
 });
 
-router.patch(
-  "/users/:id/active",
-  requireAuth,
-  requireRole(["admin", "superadmin"]),
-  async (req, res) => {
-    const result = activeSchema.safeParse(req.body);
-    if (!result.success) {
-      res.status(400).json({ message: "invalid input" });
-      return;
-    }
+router.patch("/users/:id/active", requireAuth, requirePermission("user:ban"), async (req, res) => {
+  const result = activeSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(400).json({ message: "invalid input" });
+    return;
+  }
 
-    const id = req.params.id;
-    if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json({ message: "invalid id!" });
-      return;
-    }
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ message: "invalid id!" });
+    return;
+  }
 
-    const userId = await User.findById(id);
-    if (!userId) {
-      res.status(404).json({ message: "user not found" });
-      return;
-    }
+  const userId = await User.findById(id);
+  if (!userId) {
+    res.status(404).json({ message: "user not found" });
+    return;
+  }
 
-    const actor = res.locals.user;
+  const actor = res.locals.user;
 
-    // nobody may switch off their own account
-    if (actor.id === userId._id.toString() && result.data.isActive === false) {
-      res.status(400).json({ message: "you cannot switch off your own account" });
-      return;
-    }
+  // nobody may switch off their own account
+  if (actor.id === userId._id.toString() && result.data.isActive === false) {
+    res.status(400).json({ message: "you cannot switch off your own account" });
+    return;
+  }
 
-    // only a superadmin may change another superadmin
-    if (userId.role === "superadmin" && actor.role !== "superadmin") {
-      res.status(403).json({ message: "only a superadmin can change a superadmin" });
-      return;
-    }
+  // only a superadmin may change another superadmin
+  if (userId.role === "superadmin" && actor.role !== "superadmin") {
+    res.status(403).json({ message: "only a superadmin can change a superadmin" });
+    return;
+  }
 
-    userId.isActive = result.data.isActive;
-    await userId.save();
+  userId.isActive = result.data.isActive;
+  await userId.save();
 
-    await logAudit({
-      actorId: res.locals.user.id,
-      action: userId.isActive ? "user.activate" : "user.deactivate",
-      targetId: userId._id.toString(),
-      details: { isActive: userId.isActive },
-      ip: req.ip,
-    });
+  await logAudit({
+    actorId: res.locals.user.id,
+    action: userId.isActive ? "user.activate" : "user.deactivate",
+    targetId: userId._id.toString(),
+    details: { isActive: userId.isActive },
+    ip: req.ip,
+  });
 
-    if (!userId.isActive) {
-      await RefreshToken.updateMany(
-        { userId: userId._id, revokedAt: { $exists: false } },
-        { $set: { revokedAt: new Date() } },
-      );
-    }
+  if (!userId.isActive) {
+    await RefreshToken.updateMany(
+      { userId: userId._id, revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+  }
 
-    res.json({ message: "user updated", isActive: userId.isActive });
-  },
-);
+  res.json({ message: "user updated", isActive: userId.isActive });
+});
 
 const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -78,7 +73,7 @@ const auditQuerySchema = z.object({
   action: z.string().optional(),
 });
 
-router.get("/audit", requireAuth, requireRole(["admin", "superadmin"]), async (req, res) => {
+router.get("/audit", requireAuth, requirePermission("audit:view"), async (req, res) => {
   const result = auditQuerySchema.safeParse(req.query);
   if (!result.success) {
     res.status(400).json({ message: "invalid query" });
@@ -111,7 +106,7 @@ const userListQuerySchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
 });
 
-router.get("/users", requireAuth, requireRole(["admin", "superadmin"]), async (req, res) => {
+router.get("/users", requireAuth, requirePermission("user:view"), async (req, res) => {
   const result = userListQuerySchema.safeParse(req.query);
   if (!result.success) {
     res.status(400).json({ message: "invalid query" });
