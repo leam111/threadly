@@ -24,7 +24,7 @@ export const RefreshLimiter = rateLimit({
   message: { message: "too many refresh attempts , please try again after a minute" },
 });
 
-// each sensitive limiter has its own store, so tests can empty them
+// each sensitive limiter has its own store
 const changePasswordStore = new MemoryStore();
 const deactivateStore = new MemoryStore();
 const logoutOthersStore = new MemoryStore();
@@ -67,11 +67,3 @@ export const writeLimiter = rateLimit({
   store: writeStore,
   message: { message: "too many changes , please try again after 15 minutes" },
 });
-
-// for tests: start every sensitive limiter again from 0
-export async function resetSensitiveLimiters() {
-  await changePasswordStore.resetAll();
-  await deactivateStore.resetAll();
-  await logoutOthersStore.resetAll();
-  await writeStore.resetAll();
-}
