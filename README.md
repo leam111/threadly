@@ -171,6 +171,9 @@ and login) need no login and no permission, so a guest role would never be check
 - The last active superadmin can never be demoted or switched off.
 - Every role change (`role.assign`) and permission edit (`permission.edit`) is written in the audit log.
 
+Known and accepted for now: if two superadmins change each other at the exact same moment,
+both requests could pass (the check counts first, then saves).
+
 ## Run it locally
 
 You need Node.js 22 and a free MongoDB Atlas cluster.
