@@ -8,8 +8,8 @@ This is an individual portfolio project, built step by step to learn the full li
 ## Status
 
 - Phase 0: setup (done)
-- Phase 1: authentication, roles and accounts (done, with automated tests)
-- Phase 2: the wardrobe and the member profile (done, with automated tests)
+- Phase 1: authentication, roles and accounts (done)
+- Phase 2: the wardrobe and the member profile (done)
 - Phase 3 and later: not started
 
 ### What works today
@@ -72,7 +72,7 @@ This is an individual portfolio project, built step by step to learn the full li
 - Validation (`zod`)
 - Rate limiting (`express-rate-limit`)
 - Cookies (`cookie-parser`), CORS (`cors`), security headers (`helmet`)
-- Tests: Jest and Supertest, against a separate test database
+- Code checks: TypeScript (`tsc`), ESLint and Prettier
 
 ## Project layout
 
@@ -88,9 +88,8 @@ threadly/
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
     ├── migrations/       database changes, run with migrate-mongo
     ├── scripts/          the database safety lock, index helpers, the superadmin seed
-    ├── utils/            token helpers, password rules, the audit log writer,
-    │                     and the allowed values for items and profiles
-    └── tests/            Jest and Supertest tests
+    └── utils/            token helpers, password rules, the audit log writer,
+                          and the allowed values for items and profiles
 ```
 
 ## Endpoints
@@ -129,14 +128,14 @@ You need Node.js 22 and a free MongoDB Atlas cluster.
 2. Create `api/.env` (never commit this file):
 ```
    MONGODB_URI=your-atlas-connection-string
-   MONGODB_URI_TEST=a-second-connection-string-for-tests
+   MONGODB_URI_TEST=a-second-connection-string-for-a-sandbox
    JWT_SECRET=a-long-random-text
    FRONTEND_ORIGIN=http://localhost:5173
    SEED_SUPERADMIN_EMAIL=only-for-the-seed-script
    SEED_SUPERADMIN_PASSWORD=only-for-the-seed-script
 ```
    `FRONTEND_ORIGIN` is optional. It falls back to `http://localhost:5173`.
-   `MONGODB_URI_TEST` is only for tests. Its database name must contain `_test`, or the tests refuse to start.
+   `MONGODB_URI_TEST` is a sandbox database, to try migrations and the seed safely. Its database name must contain `_test`.
 3. Start the server:
 ```
    npm run dev
@@ -183,10 +182,14 @@ The password must follow the normal password rules. The script never prints it. 
 an existing user is left alone. With `--promote`, they keep their own password. Remove the two
 `SEED_` lines from `.env` afterwards.
 
-## Run the tests
+## How I check my work
 
-From the api folder:
+This project has no automated tests (my decision, in the revised plan). Before every pull request,
+from the api folder:
 ```
-   npm test
+   npx tsc --noEmit        # TypeScript finds type errors
+   npm run lint            # ESLint finds real problems in the code
+   npm run format:check    # Prettier checks the layout
 ```
-There are 154 tests in 15 files. They run against the `MONGODB_URI_TEST` database. The newer test files delete every user, token, audit row, wardrobe item and profile they create. Two older files still leave a little behind: `auth.test.ts` leaves refresh tokens, and `adminUsers.test.ts` leaves audit rows.
+All three must be clean. Then I start the server (`npm run dev`) and go through
+[docs/manual-checklist.md](docs/manual-checklist.md) by hand in Postman.

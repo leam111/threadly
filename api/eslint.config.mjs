@@ -6,12 +6,12 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["node_modules/", "coverage/"] },
+  { ignores: ["node_modules/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     languageOptions: {
-      globals: { ...globals.node, ...globals.jest },
+      globals: { ...globals.node },
     },
     rules: {
       // a "_" at the start says "unused on purpose" (like _req or _doc)
@@ -22,11 +22,6 @@ export default tseslint.config(
       // too noisy for now: res.locals and error objects are often untyped
       "@typescript-eslint/no-explicit-any": "off",
     },
-  },
-  {
-    // jest.config.js is CommonJS, so it may use module.exports
-    files: ["**/*.js"],
-    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   prettier,
 );
