@@ -25,6 +25,25 @@ export const profileRepository = {
       setDefaultsOnInsert: true,
     }).lean();
   },
+
+  // save the new avatar path (and create the profile if there is none yet)
+  // gives the profile as it was BEFORE, so the caller knows the old avatar file
+  setAvatar(userId: string, storagePath: string) {
+    return Profile.findOneAndUpdate(
+      { userId },
+      { $set: { avatarStoragePath: storagePath } },
+      { upsert: true, returnDocument: "before", runValidators: true, setDefaultsOnInsert: true },
+    ).lean();
+  },
+
+  // remove the avatar path, but only if it is still this one
+  // (if a new avatar was saved in between, it is kept)
+  async clearAvatar(userId: string, storagePath: string) {
+    await Profile.updateOne(
+      { userId, avatarStoragePath: storagePath },
+      { $unset: { avatarStoragePath: "" } },
+    );
+  },
 };
 
 export type ProfileRepository = typeof profileRepository;

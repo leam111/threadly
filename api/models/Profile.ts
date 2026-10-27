@@ -58,6 +58,9 @@ const ProfileSchema = new Schema(
         },
       ],
     },
+    // where the avatar file is in the image storage: avatars/<userId>/<uuid>.<ext>
+    // NEVER sent in an answer (the answer gets a fresh signed avatarUrl instead)
+    avatarStoragePath: { type: String },
   },
   { timestamps: true },
 );
