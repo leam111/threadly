@@ -97,7 +97,13 @@ export function isEmptyValue(value: unknown) {
 
 // the item as JSON: the model's toJSON leaves out __v, isDeleted and deletedAt
 // colors and styleTags are always lists, even when the item has none
-export function toItemDto(item: ItemDocument) {
+// coverUrl: a signed link to the item's oldest original photo, left out when there is none
+export function toItemDto(item: ItemDocument, coverUrl?: string) {
   const json = item.toJSON();
-  return { ...json, colors: json.colors ?? [], styleTags: json.styleTags ?? [] };
+  return {
+    ...json,
+    colors: json.colors ?? [],
+    styleTags: json.styleTags ?? [],
+    ...(coverUrl ? { coverUrl } : {}),
+  };
 }
