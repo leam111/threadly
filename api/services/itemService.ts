@@ -7,8 +7,8 @@ import {
   canRestoreItem,
   canDeleteItem,
   canWearItem,
-  lookupItemFor,
 } from "../policies/itemPolicy";
+import { loadAllowedItem } from "./allowedItem";
 import { isEmptyValue } from "../dtos/itemDto";
 import type { CreateItemInput, EditItemInput, ListItemsQuery } from "../dtos/itemDto";
 import type { ItemRepository } from "../repositories/itemRepository";
@@ -16,21 +16,6 @@ import type { ItemRepository } from "../repositories/itemRepository";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function makeItemService({ items }: { items: ItemRepository }) {
-  // checks the id, finds the item for the caller, then asks the policy
-  // a stranger gets the same 404 as an id that does not exist (see itemPolicy.ts)
-  async function loadAllowedItem(actor: Actor, id: string, allowed: typeof canViewItem) {
-    const { validId, item } = await lookupItemFor(actor, id);
-    if (!validId) {
-      throw new AppError(400, "invalid id");
-    }
-
-    if (!item || !allowed(actor, item)) {
-      throw new AppError(404, "item not found");
-    }
-
-    return item;
-  }
-
   return {
     // the owner always comes from the token (actor), never from the body
     create(actor: Actor, input: CreateItemInput) {
