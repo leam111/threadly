@@ -99,7 +99,9 @@ This is an individual portfolio project, built step by step to learn the full li
 - If a storage setting is missing, the server still starts, prints one line with the missing names,
   and the upload routes answer 503 "image storage is not set up"
 - Known and accepted for now: the limit of 5 photos counts, then saves, so two uploads at the very same
-  moment could make 6. A soft deleted item keeps its photos in the bucket
+  moment could make 6
+- Note on deleted items: the photos of a soft deleted item stay in the storage bucket (and their rows
+  stay in the database) until a clean-up job exists. Revisit this with the marketplace
 
 ### Not built yet
 
