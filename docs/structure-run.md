@@ -1,5 +1,8 @@
 # Structure run: the plan
 
+> **Replaced.** PR 1 to 3 below are merged. The rest of the work now follows
+> [docs/finish-plan.md](finish-plan.md). This file is kept for history.
+
 This file lets a new chat continue the work.
 A new chat is told: "Read CLAUDE.md, docs/structure-run.md and docs/status.md, check git log to see
 which PRs are merged, and continue with the first one that is not."
