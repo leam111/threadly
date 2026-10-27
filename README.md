@@ -112,6 +112,8 @@ This is an individual portfolio project, built step by step to learn the full li
 
 ### Not built yet
 
+What is built for each part of the spec is in [docs/spec-coverage.md](docs/spec-coverage.md).
+
 The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
 
 - The React frontend, the AI service, and the whole marketplace
