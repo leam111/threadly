@@ -7,6 +7,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import wardrobeRoutes from "./routes/wardrobe";
 import profileRoutes from "./routes/profile";
+import { AppError } from "./utils/appError";
 export const app = express();
 
 app.use(helmet());
@@ -33,6 +34,12 @@ app.use((req: Request, res: Response) => {
 // 4 arguments tell Express this is the error handler
 // keep the details in the server log, never in the answer
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  // a refusal from a service: its status and message were chosen on purpose
+  if (err instanceof AppError) {
+    res.status(err.status).json({ message: err.message });
+    return;
+  }
+
   const status =
     typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
       ? err.status
