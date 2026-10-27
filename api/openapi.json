@@ -1,0 +1,1810 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Threadly API",
+    "version": "1.0.0",
+    "description": "The Threadly backend: accounts, roles, the wardrobe, photos and the member profile.\n\n**How to log in here**\n1. `POST /auth/login` (Try it out) with your email and password. Copy the `accessToken` from the answer.\n2. Click **Authorize** (top right), paste the token in **bearerAuth**, then **Authorize** and **Close**.\n3. Every route with a lock now sends `Authorization: Bearer <token>`. The token works for 15 minutes.\n\nThe refresh token is never in an answer body: it travels in the httpOnly cookie `refreshToken` (path `/auth`). The browser keeps it after a login here and sends it to `/auth/refresh`, `/auth/logout` and `/auth/logout-others` by itself.\n\n**Answers for every route**\n- An answer with an error is always `{ \"message\": \"...\" }`.\n- Broken JSON in the body: **400** `bad request`.\n- An unknown address: **404** `route not found`.\n- An unexpected error: **500** `something went wrong` (the details stay in the server log).\n\n**Permissions.** A route marked *Permission: `x`* runs `requireAuth`, then `requirePermission(\"x\")`. The field `x-permission` says the same for tools. Which role has which permission is in the README."
+  },
+  "servers": [{ "url": "http://localhost:3000", "description": "the local dev server" }],
+  "tags": [
+    { "name": "auth", "description": "Register, log in, tokens and the account" },
+    {
+      "name": "profile",
+      "description": "My member profile and my avatar (always the caller's own)"
+    },
+    { "name": "admin", "description": "Users, roles, permissions and the audit log" },
+    { "name": "wardrobe", "description": "My wardrobe items (owner only: a stranger gets 404)" },
+    { "name": "images", "description": "The photos of my wardrobe items (owner only)" }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Create an account",
+        "description": "Guards: `registerLimiter` (5 per hour per IP). No login needed. The new user is a `member`.",
+        "operationId": "register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The account is made",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterAnswer" }
+              }
+            }
+          },
+          "400": {
+            "description": "The email or the password does not follow the rules",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "the email must be valid and the password needs at least 8 characters , with a letter and a number"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The email is taken",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "user with this email already exists" }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many register attempts , please try again after a while"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Log in",
+        "description": "Guards: `loginLimiter` (6 per minute per IP). Gives an access token (15 minutes) in the body and a refresh token (7 days) in the httpOnly cookie `refreshToken`. Every login failure gets the SAME answer, so nobody learns which emails exist.",
+        "operationId": "login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logged in",
+            "headers": {
+              "Set-Cookie": { "$ref": "#/components/headers/RefreshCookie" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginAnswer" }
+              }
+            }
+          },
+          "400": {
+            "description": "The email is not an email, or the password is empty",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "Email and password are required" }
+              }
+            }
+          },
+          "401": {
+            "description": "Wrong email, wrong password, or an account that is switched off",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "Invalid email or password" }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many login attempts , please try again after a minute"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Who am I?",
+        "description": "Guards: `requireAuth`.",
+        "operationId": "me",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "The logged-in user (never the password hash)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserView" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Swap the refresh cookie for a new access token",
+        "description": "Guards: `RefreshLimiter` (10 per minute per IP). Needs the cookie `refreshToken` (the browser sends it by itself after a login). The cookie is used once and replaced by a new one (rotation). Showing an old cookie again cancels the whole family of tokens.",
+        "operationId": "refresh",
+        "security": [{ "refreshCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "A new access token, and a new cookie",
+            "headers": {
+              "Set-Cookie": { "$ref": "#/components/headers/RefreshCookie" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccessTokenAnswer" }
+              }
+            }
+          },
+          "401": {
+            "description": "No cookie, or a cookie that is unknown, used, expired, cancelled, or of a user switched off",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "noCookie": { "value": { "message": "log in first" } },
+                  "badCookie": { "value": { "message": "invalid refresh token" } }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many refresh attempts , please try again after a minute"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Log out this device",
+        "description": "Guards: none. Cancels this device's refresh token (if the cookie is there) and clears the cookie. Always answers 200.",
+        "operationId": "logout",
+        "security": [{}, { "refreshCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "logged out" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout-others": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Log out every other device",
+        "description": "Guards: `logoutOthersLimiter` (5 per 15 minutes), `requireAuth`. Needs the access token AND this device's cookie `refreshToken`: this device stays logged in.",
+        "operationId": "logoutOthers",
+        "security": [{ "bearerAuth": [], "refreshCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The other devices are logged out",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "other sessions logged out" }
+              }
+            }
+          },
+          "401": {
+            "description": "No token or a bad token (requireAuth), or no cookie, or a cookie that is unknown or of another user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "noToken": { "value": { "message": "Log in first" } },
+                  "badToken": { "value": { "message": "Log in again" } },
+                  "noCookie": { "value": { "message": "log in first" } },
+                  "badCookie": { "value": { "message": "invalid refresh token" } }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many logout attempts , please try again after 15 minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Change my password",
+        "description": "Guards: `changePasswordLimiter` (5 per 15 minutes), `requireAuth`. Ends every session: all refresh tokens are cancelled and the cookie is cleared. An access token already given still works until it expires.",
+        "operationId": "changePassword",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangePasswordInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "password changed, please log in again" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidInput" },
+          "401": {
+            "description": "Not logged in, or the current password is wrong",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "noToken": { "value": { "message": "Log in first" } },
+                  "badToken": { "value": { "message": "Log in again" } },
+                  "userGone": { "value": { "message": "you need to log in again" } },
+                  "wrongPassword": { "value": { "message": "current password is wrong" } }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many change password attempts , please try again after 15 minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/deactivate": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Switch my own account off",
+        "description": "Guards: `deactivateLimiter` (5 per 15 minutes), `requireAuth`. Every refresh token is cancelled and the cookie is cleared.",
+        "operationId": "deactivate",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeactivateInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Switched off",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "account deactivated" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidInput" },
+          "401": {
+            "description": "Not logged in, or the password is wrong",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "noToken": { "value": { "message": "Log in first" } },
+                  "badToken": { "value": { "message": "Log in again" } },
+                  "userGone": { "value": { "message": "log in again" } },
+                  "wrongPassword": { "value": { "message": "password is wrong" } }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many tries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": {
+                  "message": "too many deactivate attempts , please try again after 15 minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile/me": {
+      "get": {
+        "tags": ["profile"],
+        "summary": "Read my profile",
+        "description": "Guards: `requireAuth`. If I have no profile yet, the answer is the empty default and nothing is written.",
+        "operationId": "getMyProfile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ProfileAnswer" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" }
+        }
+      },
+      "patch": {
+        "tags": ["profile"],
+        "summary": "Create or change my profile",
+        "description": "Guards: `writeLimiter`, `requireAuth`. Send only the fields to change. `\"\"` clears a text field, `[]` clears favoriteColors. Unknown keys (like userId) are dropped.",
+        "operationId": "updateMyProfile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProfileInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ProfileAnswer" },
+          "400": {
+            "description": "A field breaks the rules, or there is nothing to change",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "nothingToChange": { "value": { "message": "nothing to change" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      }
+    },
+    "/profile/me/avatar": {
+      "post": {
+        "tags": ["profile"],
+        "summary": "Upload or replace my avatar",
+        "description": "Guards: `writeLimiter`, `requireAuth`, then `receiveImage` (multer, LAST, so an anonymous person cannot send a big file). The old avatar file is removed only after the new one is saved. The answer is the whole profile with a fresh `avatarUrl`.",
+        "operationId": "uploadMyAvatar",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/AvatarUpload" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ProfileAnswer" },
+          "400": { "$ref": "#/components/responses/BadUpload" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "413": { "$ref": "#/components/responses/ImageTooLarge" },
+          "415": { "$ref": "#/components/responses/WrongImageType" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" },
+          "502": { "$ref": "#/components/responses/StorageFailed" },
+          "503": { "$ref": "#/components/responses/StorageNotSetUp" }
+        }
+      },
+      "delete": {
+        "tags": ["profile"],
+        "summary": "Delete my avatar",
+        "description": "Guards: `writeLimiter`, `requireAuth`. The file is removed from the image storage FIRST, then from the profile. If the storage fails, the profile keeps its avatar.",
+        "operationId": "deleteMyAvatar",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "avatar deleted" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "404": {
+            "description": "I have no avatar",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "avatar not found" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/TooManyChanges" },
+          "502": { "$ref": "#/components/responses/StorageFailed" },
+          "503": { "$ref": "#/components/responses/StorageNotSetUp" }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List users",
+        "description": "Guards: `requireAuth`, `requirePermission(\"user:view\")`. Newest first, at most 50 per page, never the password hash.\n\nPermission: `user:view`",
+        "operationId": "listUsers",
+        "x-permission": "user:view",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "A part of the email (no difference between capitals and small letters)",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["member", "moderator", "admin", "superadmin"] }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["active", "inactive"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of users",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserPage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidQuery" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" }
+        }
+      }
+    },
+    "/admin/users/{id}/active": {
+      "patch": {
+        "tags": ["admin"],
+        "summary": "Switch a user on or off",
+        "description": "Guards: `requireAuth`, `requirePermission(\"user:ban\")`. A user switched off loses every login. Written in the audit log.\n\nPermission: `user:ban`",
+        "operationId": "setUserActive",
+        "x-permission": "user:ban",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/UserId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ActiveInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ActiveAnswer" }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad body or id, or a change that is never allowed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "invalidId": { "value": { "message": "invalid id!" } },
+                  "self": { "value": { "message": "you cannot switch off your own account" } },
+                  "lastSuperadmin": {
+                    "value": { "message": "there must be at least one superadmin" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowedOrSuperadmin" },
+          "404": { "$ref": "#/components/responses/UserNotFound" }
+        }
+      }
+    },
+    "/admin/users/{id}/role": {
+      "patch": {
+        "tags": ["admin"],
+        "summary": "Give a user another role",
+        "description": "Guards: `requireAuth`, `requirePermission(\"role:assign\")`. Nobody can change their own role; only a superadmin can give, take or change the superadmin role; the last active superadmin stays. Written in the audit log.\n\nPermission: `role:assign`",
+        "operationId": "setUserRole",
+        "x-permission": "role:assign",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/UserId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RoleInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RoleAnswer" }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad body, id or role, or a change that is never allowed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "invalidId": { "value": { "message": "invalid id!" } },
+                  "self": { "value": { "message": "you cannot change your own role" } },
+                  "sameRole": { "value": { "message": "nothing to change" } },
+                  "lastSuperadmin": {
+                    "value": { "message": "there must be at least one superadmin" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowedOrSuperadmin" },
+          "404": { "$ref": "#/components/responses/UserNotFound" }
+        }
+      }
+    },
+    "/admin/audit": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Read the audit log",
+        "description": "Guards: `requireAuth`, `requirePermission(\"audit:view\")`. Newest first, at most 50 per page.\n\nPermission: `audit:view`",
+        "operationId": "listAudit",
+        "x-permission": "audit:view",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Only the rows of this action, like `role.assign`",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of rows",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuditPage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidQuery" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" }
+        }
+      }
+    },
+    "/admin/permissions": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List every permission",
+        "description": "Guards: `requireAuth`, `requirePermission(\"permission:edit\")`. Sorted by name.\n\nPermission: `permission:edit`",
+        "operationId": "listPermissions",
+        "x-permission": "permission:edit",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Every permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Permission" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" }
+        }
+      }
+    },
+    "/admin/roles": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "List every role with its permissions",
+        "description": "Guards: `requireAuth`, `requirePermission(\"permission:edit\")`. Sorted by name.\n\nPermission: `permission:edit`",
+        "operationId": "listRoles",
+        "x-permission": "permission:edit",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Every role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Role" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" }
+        }
+      }
+    },
+    "/admin/roles/{name}/permissions": {
+      "put": {
+        "tags": ["admin"],
+        "summary": "Replace the permission list of a role",
+        "description": "Guards: `requireAuth`, `requirePermission(\"permission:edit\")`. The whole list is replaced; the same name twice counts once. The superadmin role always keeps `role:assign` and `permission:edit`. Works at the next request. Written in the audit log.\n\nPermission: `permission:edit`",
+        "operationId": "replaceRolePermissions",
+        "x-permission": "permission:edit",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "The role name, like `moderator`",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RolePermissionsInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replaced",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RolePermissionsAnswer" }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad body, an unknown permission name, or superadmin would lose a key permission",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "superadminMustKeep": {
+                    "value": { "message": "superadmin must keep role:assign and permission:edit" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": {
+            "description": "No role with this name",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "role not found" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wardrobe": {
+      "post": {
+        "tags": ["wardrobe"],
+        "summary": "Add an item to my wardrobe",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`. The owner comes from the token. ownerId, status, wearCount, lastWornAt and isDeleted are never taken from the body (unknown keys are dropped).\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "createItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ItemCreateInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new item",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Item" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidInput" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      },
+      "get": {
+        "tags": ["wardrobe"],
+        "summary": "List my items",
+        "description": "Guards: `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`. Only my items, newest first, at most 50 per page. Deleted items never appear. The filters can be combined.\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "listItems",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/ItemStatus" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/ItemCategory" }
+          },
+          {
+            "name": "color",
+            "in": "query",
+            "description": "One color from the `colors` list (compared in lowercase)",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 30 }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["spring", "summer", "autumn", "winter", "all"]
+            }
+          },
+          {
+            "name": "styleTag",
+            "in": "query",
+            "description": "One tag from the `styleTags` list (compared in lowercase)",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 30 }
+          },
+          {
+            "name": "notWornDays",
+            "in": "query",
+            "description": "Not worn for that many days, or never worn",
+            "schema": { "type": "string", "enum": ["30", "60", "90"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of my items",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ItemPage" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidQuery" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" }
+        }
+      }
+    },
+    "/wardrobe/{id}": {
+      "get": {
+        "tags": ["wardrobe"],
+        "summary": "See one of my items",
+        "description": "Guards: `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy (the owner only).\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "getItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ItemAnswer" },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["wardrobe"],
+        "summary": "Change my item",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. Send only the fields to change. `\"\"` clears a text or a choice, `[]` clears a list, `null` clears the price. `{}` answers \"nothing to change\".\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "editItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ItemFields" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ItemAnswer" },
+          "400": {
+            "description": "A field breaks the rules, nothing to change, or a bad id",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "nothingToChange": { "value": { "message": "nothing to change" } },
+                  "invalidId": { "value": { "message": "invalid id" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      },
+      "delete": {
+        "tags": ["wardrobe"],
+        "summary": "Delete my item (soft delete)",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. The item stays in the database, marked as deleted; every route then answers 404 for it.\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "deleteItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "item deleted" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      }
+    },
+    "/wardrobe/{id}/archive": {
+      "patch": {
+        "tags": ["wardrobe"],
+        "summary": "Archive my item",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. status becomes `archived`. Repeating it is fine (200).\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "archiveItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ItemAnswer" },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      }
+    },
+    "/wardrobe/{id}/restore": {
+      "patch": {
+        "tags": ["wardrobe"],
+        "summary": "Put my item back in the closet",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. status becomes `in_closet`. Repeating it is fine (200).\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "restoreItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ItemAnswer" },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      }
+    },
+    "/wardrobe/{id}/wear": {
+      "post": {
+        "tags": ["wardrobe"],
+        "summary": "Count one wear",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. wearCount + 1, lastWornAt now.\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "wearItem",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ItemAnswer" },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      }
+    },
+    "/wardrobe/{id}/images": {
+      "post": {
+        "tags": ["images"],
+        "summary": "Upload a photo of my item",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then `receiveImage` (multer, LAST), then the item policy. One file in the field `image`, at most 5 MB, JPEG, PNG or WebP (decided by the real content of the file, never by its name). At most 5 photos per item. The file goes to the storage first: if that fails, nothing is saved.\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "uploadItemImage",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/ImageUpload" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "$ref": "#/components/responses/ImageAnswer" },
+          "400": {
+            "description": "No file, two files, a bad form, a bad alt, or a bad id",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "noFile": { "value": { "message": "image is required" } },
+                  "twoFiles": { "value": { "message": "only one image at a time" } },
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "brokenForm": { "value": { "message": "bad request" } },
+                  "invalidId": { "value": { "message": "invalid id" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" },
+          "409": {
+            "description": "The item has 5 photos already",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "this item already has 5 images" }
+              }
+            }
+          },
+          "413": { "$ref": "#/components/responses/ImageTooLarge" },
+          "415": { "$ref": "#/components/responses/WrongImageType" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" },
+          "502": { "$ref": "#/components/responses/StorageFailed" },
+          "503": { "$ref": "#/components/responses/StorageNotSetUp" }
+        }
+      },
+      "get": {
+        "tags": ["images"],
+        "summary": "List the photos of my item",
+        "description": "Guards: `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. Newest first, each with a fresh signed `url` (left out if signing failed).\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "listItemImages",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ItemId" }],
+        "responses": {
+          "200": {
+            "description": "The photos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Image" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemNotFound" }
+        }
+      }
+    },
+    "/wardrobe/{id}/images/{imageId}": {
+      "patch": {
+        "tags": ["images"],
+        "summary": "Change the alt of a photo",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. Only `alt` can change; `\"\"` clears it; `{}` answers \"nothing to change\".\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "editItemImage",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ItemId" },
+          { "$ref": "#/components/parameters/ImageId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ImageEditInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ImageAnswer" },
+          "400": {
+            "description": "A bad alt, nothing to change, or a bad id",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "examples": {
+                  "invalidInput": { "value": { "message": "invalid input" } },
+                  "nothingToChange": { "value": { "message": "nothing to change" } },
+                  "invalidId": { "value": { "message": "invalid id" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemOrImageNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" }
+        }
+      },
+      "delete": {
+        "tags": ["images"],
+        "summary": "Delete a photo",
+        "description": "Guards: `writeLimiter`, `requireAuth`, `requirePermission(\"wardrobe:manage_own\")`, then the item policy. The file is deleted from the storage FIRST, then the row. If the storage fails, the row stays, so the owner can try again.\n\nPermission: `wardrobe:manage_own`",
+        "operationId": "deleteItemImage",
+        "x-permission": "wardrobe:manage_own",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/ItemId" },
+          { "$ref": "#/components/parameters/ImageId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Message" },
+                "example": { "message": "image deleted" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/InvalidId" },
+          "401": { "$ref": "#/components/responses/NotLoggedIn" },
+          "403": { "$ref": "#/components/responses/NotAllowed" },
+          "404": { "$ref": "#/components/responses/ItemOrImageNotFound" },
+          "429": { "$ref": "#/components/responses/TooManyChanges" },
+          "502": { "$ref": "#/components/responses/StorageFailed" },
+          "503": { "$ref": "#/components/responses/StorageNotSetUp" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "The `accessToken` from `POST /auth/login` or `POST /auth/refresh` (15 minutes)"
+      },
+      "refreshCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "refreshToken",
+        "description": "The httpOnly refresh cookie (7 days, path `/auth`). It is set by `POST /auth/login` and the browser sends it by itself: there is nothing to paste here."
+      }
+    },
+    "headers": {
+      "RefreshCookie": {
+        "description": "`refreshToken=<new token>; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=604800` (plus `Secure` in production)",
+        "schema": { "type": "string" }
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "description": "The page number, from 1",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Rows per page. More than 50 is cut to 50",
+        "schema": { "type": "integer", "minimum": 1, "default": 20 }
+      },
+      "ItemId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The id of my wardrobe item (24 hex characters)",
+        "schema": { "type": "string" }
+      },
+      "ImageId": {
+        "name": "imageId",
+        "in": "path",
+        "required": true,
+        "description": "The id of a photo of that item (24 hex characters)",
+        "schema": { "type": "string" }
+      },
+      "UserId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The id of the user (24 hex characters)",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "NotLoggedIn": {
+        "description": "requireAuth: no token, or a token that is wrong, expired, or of a user switched off",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "examples": {
+              "noToken": { "value": { "message": "Log in first" } },
+              "badToken": { "value": { "message": "Log in again" } }
+            }
+          }
+        }
+      },
+      "NotAllowed": {
+        "description": "requirePermission: my role does not have the permission",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "You are not allowed here" }
+          }
+        }
+      },
+      "NotAllowedOrSuperadmin": {
+        "description": "My role does not have the permission, or the change touches a superadmin and I am not one",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "examples": {
+              "noPermission": { "value": { "message": "You are not allowed here" } },
+              "superadminOnly": {
+                "value": { "message": "only a superadmin can change a superadmin" }
+              }
+            }
+          }
+        }
+      },
+      "InvalidInput": {
+        "description": "The body breaks the rules",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "invalid input" }
+          }
+        }
+      },
+      "InvalidQuery": {
+        "description": "The query breaks the rules",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "invalid query" }
+          }
+        }
+      },
+      "InvalidId": {
+        "description": "An id that is not a MongoDB id",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "invalid id" }
+          }
+        }
+      },
+      "UserNotFound": {
+        "description": "No user with this id",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "user not found" }
+          }
+        }
+      },
+      "ItemNotFound": {
+        "description": "No such item, someone else's item, or a deleted item (a stranger always gets this, never 403)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "item not found" }
+          }
+        }
+      },
+      "ItemOrImageNotFound": {
+        "description": "The item is not mine (or does not exist), or the photo is not on that item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "examples": {
+              "item": { "value": { "message": "item not found" } },
+              "image": { "value": { "message": "image not found" } }
+            }
+          }
+        }
+      },
+      "TooManyChanges": {
+        "description": "writeLimiter: 60 changes per 15 minutes per IP, for the wardrobe and profile together",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "too many changes , please try again after 15 minutes" }
+          }
+        }
+      },
+      "BadUpload": {
+        "description": "No file, two files, or a bad form",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "examples": {
+              "noFile": { "value": { "message": "image is required" } },
+              "twoFiles": { "value": { "message": "only one image at a time" } },
+              "tooManyFields": { "value": { "message": "invalid input" } },
+              "brokenForm": { "value": { "message": "bad request" } }
+            }
+          }
+        }
+      },
+      "ImageTooLarge": {
+        "description": "The file is bigger than 5 MB",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "image too large (max 5 MB)" }
+          }
+        }
+      },
+      "WrongImageType": {
+        "description": "The content of the file is not a JPEG, PNG or WebP",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "only jpeg, png or webp images" }
+          }
+        }
+      },
+      "StorageFailed": {
+        "description": "The image storage said no or could not be reached (for example a paused Supabase project)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "image storage failed" }
+          }
+        }
+      },
+      "StorageNotSetUp": {
+        "description": "A SUPABASE_ setting is missing or not valid",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Message" },
+            "example": { "message": "image storage is not set up" }
+          }
+        }
+      },
+      "ItemAnswer": {
+        "description": "The item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Item" }
+          }
+        }
+      },
+      "ImageAnswer": {
+        "description": "The photo, with a fresh signed url",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Image" }
+          }
+        }
+      },
+      "ProfileAnswer": {
+        "description": "My profile",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Profile" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Message": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } }
+      },
+      "ObjectId": {
+        "type": "string",
+        "description": "A MongoDB id (24 hex characters)",
+        "example": "6650c0ffee0000000000abcd"
+      },
+      "RegisterInput": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "owner1@example.com" },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "At least 8 characters, with a letter and a number",
+            "example": "Passw0rd1"
+          }
+        }
+      },
+      "RegisterAnswer": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "user created successfully" },
+          "userId": { "$ref": "#/components/schemas/ObjectId" },
+          "email": { "type": "string" },
+          "role": { "type": "string", "example": "member" }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "owner1@example.com" },
+          "password": { "type": "string", "minLength": 1, "example": "Passw0rd1" }
+        }
+      },
+      "UserView": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "#/components/schemas/ObjectId" },
+          "email": { "type": "string" },
+          "role": { "type": "string", "example": "member" }
+        }
+      },
+      "LoginAnswer": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string", "description": "A JWT, valid 15 minutes" },
+          "user": { "$ref": "#/components/schemas/UserView" }
+        }
+      },
+      "AccessTokenAnswer": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string", "description": "A JWT, valid 15 minutes" }
+        }
+      },
+      "ChangePasswordInput": {
+        "type": "object",
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": { "type": "string", "minLength": 1 },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "description": "At least 8 characters, with a letter and a number"
+          }
+        }
+      },
+      "DeactivateInput": {
+        "type": "object",
+        "required": ["currentPassword"],
+        "properties": { "currentPassword": { "type": "string", "minLength": 1 } }
+      },
+      "ProfileStyle": {
+        "type": "string",
+        "enum": [
+          "classic",
+          "streetwear",
+          "y2k",
+          "preppy",
+          "boho",
+          "minimal",
+          "vintage",
+          "sporty",
+          "glam"
+        ]
+      },
+      "ProfileInput": {
+        "type": "object",
+        "description": "Every field is optional. \"\" clears a text field.",
+        "properties": {
+          "displayName": { "type": "string", "maxLength": 40 },
+          "bio": { "type": "string", "maxLength": 200 },
+          "city": { "type": "string", "maxLength": 60 },
+          "country": { "type": "string", "maxLength": 60 },
+          "sizes": { "$ref": "#/components/schemas/Sizes" },
+          "styles": {
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": { "$ref": "#/components/schemas/ProfileStyle" }
+          },
+          "favoriteColors": {
+            "type": "array",
+            "maxItems": 10,
+            "uniqueItems": true,
+            "description": "Trimmed and saved in lowercase. [] clears the list",
+            "items": { "type": "string", "minLength": 1, "maxLength": 30 }
+          }
+        }
+      },
+      "Sizes": {
+        "type": "object",
+        "properties": {
+          "top": { "type": "string", "maxLength": 10 },
+          "bottom": { "type": "string", "maxLength": 10 },
+          "dress": { "type": "string", "maxLength": 10 },
+          "shoes": { "type": "string", "maxLength": 10 }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "description": "Text fields only when they have a value. sizes is always an object, styles and favoriteColors always lists. Never _id, __v or avatarStoragePath.",
+        "properties": {
+          "userId": { "$ref": "#/components/schemas/ObjectId" },
+          "displayName": { "type": "string" },
+          "bio": { "type": "string" },
+          "city": { "type": "string" },
+          "country": { "type": "string" },
+          "sizes": { "$ref": "#/components/schemas/Sizes" },
+          "styles": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ProfileStyle" }
+          },
+          "favoriteColors": { "type": "array", "items": { "type": "string" } },
+          "avatarUrl": {
+            "type": "string",
+            "description": "A signed link to my avatar, valid 1 hour. Left out when I have none, or when signing failed"
+          },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AvatarUpload": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "One JPEG, PNG or WebP, at most 5 MB"
+          }
+        }
+      },
+      "AdminUser": {
+        "type": "object",
+        "description": "Never the password hash",
+        "properties": {
+          "_id": { "$ref": "#/components/schemas/ObjectId" },
+          "email": { "type": "string" },
+          "role": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UserPage": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/AdminUser" } }
+        }
+      },
+      "ActiveInput": {
+        "type": "object",
+        "required": ["isActive"],
+        "properties": { "isActive": { "type": "boolean" } }
+      },
+      "ActiveAnswer": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "user updated" },
+          "isActive": { "type": "boolean" }
+        }
+      },
+      "RoleInput": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "description": "The name of a role that exists",
+            "example": "moderator"
+          }
+        }
+      },
+      "RoleAnswer": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "role updated" },
+          "role": { "type": "string" }
+        }
+      },
+      "AuditEntry": {
+        "type": "object",
+        "properties": {
+          "_id": { "$ref": "#/components/schemas/ObjectId" },
+          "actorId": { "$ref": "#/components/schemas/ObjectId" },
+          "action": { "type": "string", "example": "role.assign" },
+          "targetId": { "$ref": "#/components/schemas/ObjectId" },
+          "details": { "type": "object", "additionalProperties": true },
+          "ip": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AuditPage": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/AuditEntry" } }
+        }
+      },
+      "Permission": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "user:ban" },
+          "description": { "type": "string" }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "moderator" },
+          "description": { "type": "string" },
+          "isSystem": { "type": "boolean" },
+          "permissions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "RolePermissionsInput": {
+        "type": "object",
+        "required": ["permissions"],
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "The WHOLE new list. Every name must be a real permission",
+            "items": { "type": "string", "minLength": 1, "maxLength": 50 },
+            "example": ["listing:read", "wardrobe:manage_own"]
+          }
+        }
+      },
+      "RolePermissionsAnswer": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "role updated" },
+          "role": { "type": "string" },
+          "permissions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "ItemCategory": {
+        "type": "string",
+        "enum": ["top", "bottom", "dress", "outerwear", "shoes", "accessory", "bag", "other"]
+      },
+      "ItemStatus": {
+        "type": "string",
+        "description": "Only the archive and restore routes change it. listed and sold are for the marketplace (later)",
+        "enum": ["in_closet", "listed", "sold", "archived"]
+      },
+      "ItemFields": {
+        "type": "object",
+        "description": "Every field is optional. \"\" clears a text or a choice, [] clears a list, null clears the price. Unknown keys are dropped.",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "category": { "$ref": "#/components/schemas/ItemCategory" },
+          "subCategory": { "type": "string", "maxLength": 50 },
+          "brand": { "type": "string", "maxLength": 50 },
+          "color": { "type": "string", "maxLength": 50 },
+          "colors": {
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "description": "Trimmed and saved in lowercase",
+            "items": { "type": "string", "minLength": 1, "maxLength": 30 }
+          },
+          "size": { "type": "string", "maxLength": 50 },
+          "pattern": { "type": "string", "maxLength": 30 },
+          "material": { "type": "string", "maxLength": 50 },
+          "season": {
+            "type": "string",
+            "enum": ["spring", "summer", "autumn", "winter", "all", ""]
+          },
+          "styleTags": {
+            "type": "array",
+            "maxItems": 10,
+            "uniqueItems": true,
+            "description": "Trimmed and saved in lowercase",
+            "items": { "type": "string", "minLength": 1, "maxLength": 30 }
+          },
+          "condition": {
+            "type": "string",
+            "enum": ["new_with_tags", "like_new", "very_good", "good", "fair", ""]
+          },
+          "purchasePrice": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "At most 2 decimals"
+          },
+          "notes": { "type": "string", "maxLength": 500 }
+        }
+      },
+      "ItemCreateInput": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ItemFields" },
+          {
+            "type": "object",
+            "required": ["name", "category"],
+            "example": { "name": "Blue denim jacket", "category": "outerwear", "colors": ["blue"] }
+          }
+        ]
+      },
+      "Item": {
+        "type": "object",
+        "description": "Never __v, isDeleted or deletedAt. colors and styleTags are always lists.",
+        "properties": {
+          "_id": { "$ref": "#/components/schemas/ObjectId" },
+          "ownerId": { "$ref": "#/components/schemas/ObjectId" },
+          "name": { "type": "string" },
+          "category": { "$ref": "#/components/schemas/ItemCategory" },
+          "subCategory": { "type": "string" },
+          "brand": { "type": "string" },
+          "color": { "type": "string" },
+          "colors": { "type": "array", "items": { "type": "string" } },
+          "size": { "type": "string" },
+          "pattern": { "type": "string" },
+          "material": { "type": "string" },
+          "season": { "type": "string" },
+          "styleTags": { "type": "array", "items": { "type": "string" } },
+          "condition": { "type": "string" },
+          "purchasePrice": { "type": "number" },
+          "notes": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/ItemStatus" },
+          "wearCount": { "type": "integer" },
+          "lastWornAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "coverUrl": {
+            "type": "string",
+            "description": "A signed link to the oldest original photo, valid 1 hour. Left out when there is no photo, or when signing failed"
+          }
+        }
+      },
+      "ItemPage": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/Item" } }
+        }
+      },
+      "ImageUpload": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "One JPEG, PNG or WebP, at most 5 MB"
+          },
+          "alt": {
+            "type": "string",
+            "maxLength": 150,
+            "description": "A short text that describes the photo"
+          }
+        }
+      },
+      "ImageEditInput": {
+        "type": "object",
+        "properties": {
+          "alt": { "type": "string", "maxLength": 150, "description": "\"\" clears it" }
+        }
+      },
+      "Image": {
+        "type": "object",
+        "description": "Never storagePath or __v",
+        "properties": {
+          "_id": { "$ref": "#/components/schemas/ObjectId" },
+          "itemId": { "$ref": "#/components/schemas/ObjectId" },
+          "ownerId": { "$ref": "#/components/schemas/ObjectId" },
+          "kind": { "type": "string", "enum": ["original", "cutout"] },
+          "alt": { "type": "string" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "bytes": { "type": "integer" },
+          "mimeType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "url": {
+            "type": "string",
+            "description": "A signed link, valid 1 hour. Left out when signing failed"
+          }
+        }
+      }
+    }
+  }
+}

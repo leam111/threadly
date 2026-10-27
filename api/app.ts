@@ -7,10 +7,29 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import wardrobeRoutes from "./routes/wardrobe";
 import profileRoutes from "./routes/profile";
+import docsRoutes from "./routes/docs";
 import { AppError } from "./utils/appError";
 export const app = express();
 
-app.use(helmet());
+// the Swagger page (/docs) is for development only: never served in production
+const showDocs = process.env.NODE_ENV !== "production";
+
+// the normal, strict security headers for every route
+const strictHeaders = helmet();
+// the Swagger page only: the same, but without "upgrade-insecure-requests",
+// which would make the browser ask for the page's files over https on http://localhost
+const docsHeaders = helmet({
+  contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } },
+});
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const isDocsPage = req.path === "/docs" || req.path.startsWith("/docs/");
+  if (showDocs && isDocsPage) {
+    docsHeaders(req, res, next);
+    return;
+  }
+  strictHeaders(req, res, next);
+});
 app.use(
   cors({
     origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
@@ -25,6 +44,10 @@ app.use("/admin", adminRoutes);
 
 app.use("/wardrobe", wardrobeRoutes);
 app.use("/profile", profileRoutes);
+
+if (showDocs) {
+  app.use(docsRoutes);
+}
 
 // no route matched: answer with JSON, not the default HTML page
 app.use((req: Request, res: Response) => {

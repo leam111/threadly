@@ -103,11 +103,17 @@ This is an individual portfolio project, built step by step to learn the full li
 - Note on deleted items: the photos of a soft deleted item stay in the storage bucket (and their rows
   stay in the database) until a clean-up job exists. Revisit this with the marketplace
 
+**API docs (Swagger)**
+- One OpenAPI 3 file, [api/openapi.json](api/openapi.json), describes every route: the body, the
+  answers with their real messages, the token, the refresh cookie, the form-data uploads, and the
+  permission each route needs
+- The server shows it at `/docs` (and the raw file at `/docs.json`), only when `NODE_ENV` is not
+  `production`. See [API docs (Swagger)](#api-docs-swagger) below
+
 ### Not built yet
 
 The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
 
-- Swagger docs
 - The React frontend, the AI service, and the whole marketplace
 
 ## Tech
@@ -120,6 +126,7 @@ The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md
 - Rate limiting (`express-rate-limit`)
 - Cookies (`cookie-parser`), CORS (`cors`), security headers (`helmet`)
 - File uploads (`multer`, in memory) and image storage (Supabase Storage, `@supabase/supabase-js`)
+- API docs: OpenAPI 3 and Swagger UI (`swagger-ui-express`)
 - Code checks: TypeScript (`tsc`), ESLint and Prettier
 
 ## Project layout
@@ -129,6 +136,7 @@ threadly/
 └── api/
     ├── index.ts          starts the server
     ├── app.ts            builds the app: middleware, routes, 404 and error handler
+    ├── openapi.json      the API docs: every route, shown at /docs (not in production)
     ├── container.ts      puts the pieces together: gives each service its repositories
     ├── db.ts             connects to MongoDB
     ├── routes/           thin routers: which guards run, then which controller
@@ -218,6 +226,44 @@ picks its own database code, it is given it.
 | PATCH | `/profile/me` | logged in | Create or change my profile |
 | POST | `/profile/me/avatar` | logged in | Upload or replace my avatar (form-data key `image`) |
 | DELETE | `/profile/me/avatar` | logged in | Delete my avatar |
+
+Not in production (`NODE_ENV` is not `production`): `GET /docs` (the Swagger page) and `GET /docs.json`
+(the OpenAPI file). See [API docs (Swagger)](#api-docs-swagger).
+
+## API docs (Swagger)
+
+Every route is described in ONE file, [api/openapi.json](api/openapi.json) (OpenAPI 3). The server shows
+it as a web page with Swagger UI. When you add or change a route, change this file too.
+
+**Open it**
+1. Start the server from `api/` with `npm run dev` (`NODE_ENV` must not be `production`).
+2. Open [http://localhost:3000/docs](http://localhost:3000/docs) in the browser.
+   The raw file is at [http://localhost:3000/docs.json](http://localhost:3000/docs.json)
+   (in Postman: **Import**, then paste this link, to get every route at once).
+
+**Try a route with a token**
+1. Open `POST /auth/login`, click **Try it out**, write your email and password in the body, click
+   **Execute**. Copy the `accessToken` from the answer (without the quotes).
+2. Click **Authorize** (the button with a lock, top right). In **bearerAuth**, paste the token, click
+   **Authorize**, then **Close**. The locks are now closed.
+3. Open any route with a lock, like `GET /auth/me`, then **Try it out** and **Execute**. Swagger sends
+   `Authorization: Bearer <token>` for you. The token works for 15 minutes: after that, log in again
+   (or call `POST /auth/refresh`) and paste the new token.
+4. The refresh cookie: the login in step 1 also gave the browser the `refreshToken` cookie, so
+   `POST /auth/refresh` works from this page with nothing to paste (there is nothing to fill in
+   for **refreshCookie**).
+5. Uploads (`POST /wardrobe/{id}/images`, `POST /profile/me/avatar`): **Try it out** shows a
+   **Choose File** button for `image`.
+
+Careful: "Try it out" sends REAL requests to the server, so to the database in `MONGODB_URI`.
+Use throw-away accounts, as in the manual checklist. Every answer is `{ "message": "..." }` when
+something is refused; the description of each route lists its guards, its permission and its messages.
+
+**Safety**
+- In production (`NODE_ENV=production`), `/docs` and `/docs.json` do not exist (404 `route not found`).
+- The security headers (helmet) stay strict for every route. Only the `/docs` pages get one rule less
+  (`upgrade-insecure-requests`), because that rule makes the browser ask for the page's files over
+  https, which does not work on `http://localhost`.
 
 ## Roles and permissions
 

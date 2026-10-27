@@ -1,6 +1,6 @@
 # Status
 
-Date: 2026-10-27 (after Step 4 was opened)
+Date: 2026-10-27 (after Step 5 was opened)
 
 The plan is now [docs/finish-plan.md](finish-plan.md) (five steps to finish Phase 1 and 2).
 The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are merged.
@@ -20,6 +20,8 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 | #20 | feat/wardrobe-2f (Step 2) | 0c267d3 |
 | #21 | feat/profile-extras (Step 3) | 945ec3e |
 | #22 | chore/env-example-supabase (extra) | aa195d6 |
+| #23 | feat/image-upload (Step 4) | 27eeed8 |
+| #24 | fix/supabase-url-origin (extra) | d431f47 |
 
 ## The five steps of docs/finish-plan.md
 
@@ -28,8 +30,8 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 | 1 | refactor/layers | merged (#19) |
 | 2 | feat/wardrobe-2f | merged (#20) |
 | 3 | feat/profile-extras | merged (#21) |
-| 4 | feat/image-upload | pull request open, waiting for the owner's check |
-| 5 | feat/swagger-docs | not started |
+| 4 | feat/image-upload | merged (#23) |
+| 5 | feat/swagger-docs | pull request open, waiting for the owner's check |
 
 Rollback tag for this run: `before-layers` (main just before Step 1).
 
@@ -42,11 +44,17 @@ and `docs/manual-checklist.md`, run by hand.
 
 ## Next
 
-Once Step 4 (`feat/image-upload`) is merged: Step 5, `feat/swagger-docs`.
-Step 4 uses **Supabase Storage** instead of the first choice (the owner's change, see the Step 4 section of
-[finish-plan.md](finish-plan.md)). It needs migration 005 and the three `SUPABASE_` values in `api/.env`.
+Step 5 (`feat/swagger-docs`) is the LAST step of [finish-plan.md](finish-plan.md).
+Check it with the "STEP 5: SWAGGER" group of [manual-checklist.md](manual-checklist.md), then merge it.
+No migration is needed for Step 5.
 
-Message to resume:
+After it is merged, Phase 1 and Phase 2 are finished. Next comes a new plan (the React frontend,
+the AI service, the marketplace): there is no next step in finish-plan.md.
+
+The API docs live in `api/openapi.json`: when a route is added or changed, change that file too
+(the Swagger page at `/docs` reads it).
+
+Message to resume (only useful while a step of finish-plan.md is still not merged):
 
 > Read CLAUDE.md, docs/finish-plan.md and docs/status.md. git switch main, git pull, git log --oneline -10. Do the next step that is not merged. Stop at its pull request.
 
