@@ -47,8 +47,15 @@ function connect() {
   }
 
   try {
+    // keep only the origin (https://<project id>.supabase.co): a copied path like /rest/v1/
+    // or a trailing slash would break the storage links
+    // new URL throws on a value that is not a web address; "null" is the origin of a non-web one
+    const origin = new URL(process.env.SUPABASE_URL as string).origin;
+    if (origin === "null") {
+      throw new Error("not a web address");
+    }
     const client = createClient(
-      process.env.SUPABASE_URL as string,
+      origin,
       process.env.SUPABASE_SERVICE_ROLE_KEY as string,
       // a server has no user session to keep or refresh
       { auth: { persistSession: false, autoRefreshToken: false } },

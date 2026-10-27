@@ -320,6 +320,7 @@ The app answers with signed links that work for 1 hour.
 **Where to find the three values**
 - `SUPABASE_URL`: Project Settings, **API** (or **Data API**): the **Project URL**
   (it looks like `https://<something>.supabase.co`).
+  `SUPABASE_URL` is just `https://<project id>.supabase.co`, with no path (the server keeps only that part).
 - `SUPABASE_SERVICE_ROLE_KEY`: Project Settings, **API Keys**: the **service_role** key, or a
   **secret** key on newer projects. This key can do EVERYTHING in your project: put it only in
   `api/.env`. Never in the frontend, never in git, never in a chat or a screenshot.
