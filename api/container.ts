@@ -11,6 +11,7 @@ import { auditRepository } from "./repositories/auditRepository";
 import { roleRepository } from "./repositories/roleRepository";
 import { permissionRepository } from "./repositories/permissionRepository";
 import { makeAdminService } from "./services/adminService";
+import { makeAuthService } from "./services/authService";
 
 export const profileService = makeProfileService({ profiles: profileRepository });
 export const itemService = makeItemService({ items: itemRepository });
@@ -20,4 +21,8 @@ export const adminService = makeAdminService({
   audit: auditRepository,
   roles: roleRepository,
   permissions: permissionRepository,
+});
+export const authService = makeAuthService({
+  users: userRepository,
+  tokens: refreshTokenRepository,
 });

@@ -16,6 +16,28 @@ export type UserDocument = NonNullable<Awaited<ReturnType<typeof findById>>>;
 export const userRepository = {
   findById,
 
+  findByEmail(email: string) {
+    return User.findOne({ email });
+  },
+
+  // the new user, or null when the email is already taken
+  // (two sign-ups at the same moment: the unique index refuses the second one)
+  async create(email: string, passwordHash: string) {
+    try {
+      return await User.create({ email, passwordHash });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === 11000) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  async setPasswordHash(user: UserDocument, passwordHash: string) {
+    user.passwordHash = passwordHash;
+    await user.save();
+  },
+
   countActiveSuperadmins() {
     return User.countDocuments({ role: "superadmin", isActive: true });
   },

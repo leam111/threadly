@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { User } from "../models/User";
+import { userRepository } from "../repositories/userRepository";
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
@@ -30,7 +30,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  const user = await User.findById(payload.sub);
+  const user = await userRepository.findById(payload.sub);
   if (!user || !user.isActive) {
     res.status(401).json({ message: "Log in again" });
     return;
