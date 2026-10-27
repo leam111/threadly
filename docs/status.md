@@ -1,6 +1,6 @@
 # Status
 
-Date: 2026-10-27 (after Step 2 was opened)
+Date: 2026-10-27 (after Step 3 was opened)
 
 The plan is now [docs/finish-plan.md](finish-plan.md) (five steps to finish Phase 1 and 2).
 The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are merged.
@@ -17,14 +17,15 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 | #17 | chore/remove-tests-ci-stripe (extra) | 2586ce1 |
 | #18 | feat/rbac-permissions | f3dbd92 |
 | #19 | refactor/layers (Step 1) | bb57c29 |
+| #20 | feat/wardrobe-2f (Step 2) | 0c267d3 |
 
 ## The five steps of docs/finish-plan.md
 
 | Step | Branch | State |
 |------|--------|-------|
 | 1 | refactor/layers | merged (#19) |
-| 2 | feat/wardrobe-2f | pull request open, waiting for the owner's check |
-| 3 | feat/profile-extras | not started |
+| 2 | feat/wardrobe-2f | merged (#20) |
+| 3 | feat/profile-extras | pull request open, waiting for the owner's check |
 | 4 | feat/image-upload | not started |
 | 5 | feat/swagger-docs | not started |
 
@@ -39,7 +40,8 @@ and `docs/manual-checklist.md`, run by hand.
 
 ## Next
 
-Once Step 2 (`feat/wardrobe-2f`) is merged AND migration 004 has run on the real database: Step 3, `feat/profile-extras`.
+Once Step 3 (`feat/profile-extras`) is merged: Step 4, `feat/image-upload`.
+Step 3 needs no migration.
 
 Message to resume:
 
