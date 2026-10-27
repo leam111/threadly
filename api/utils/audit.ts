@@ -1,14 +1,8 @@
-import { AuditLog } from "../models/AuditLog";
+import { auditRepository, AuditEntry } from "../repositories/auditRepository";
 
-export async function logAudit(entry: {
-  actorId: string;
-  action: string;
-  targetId?: string;
-  details?: unknown;
-  ip?: string;
-}) {
+export async function logAudit(entry: AuditEntry) {
   try {
-    await AuditLog.create(entry);
+    await auditRepository.create(entry);
   } catch (error) {
     console.error("audit log failed ", error);
   }

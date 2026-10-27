@@ -5,6 +5,19 @@ import { profileRepository } from "./repositories/profileRepository";
 import { makeProfileService } from "./services/profileService";
 import { itemRepository } from "./repositories/itemRepository";
 import { makeItemService } from "./services/itemService";
+import { userRepository } from "./repositories/userRepository";
+import { refreshTokenRepository } from "./repositories/refreshTokenRepository";
+import { auditRepository } from "./repositories/auditRepository";
+import { roleRepository } from "./repositories/roleRepository";
+import { permissionRepository } from "./repositories/permissionRepository";
+import { makeAdminService } from "./services/adminService";
 
 export const profileService = makeProfileService({ profiles: profileRepository });
 export const itemService = makeItemService({ items: itemRepository });
+export const adminService = makeAdminService({
+  users: userRepository,
+  tokens: refreshTokenRepository,
+  audit: auditRepository,
+  roles: roleRepository,
+  permissions: permissionRepository,
+});
