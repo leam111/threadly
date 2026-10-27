@@ -57,6 +57,16 @@ export const itemRepository = {
     await item.save();
   },
 
+  // wearCount + 1 and lastWornAt = now, in ONE database step ($inc), so two wears at the
+  // same moment both count. Gives the updated item, or null if it was deleted in between
+  recordWear(item: ItemDocument) {
+    return WardrobeItem.findOneAndUpdate(
+      { _id: item._id, ownerId: item.ownerId, ...NOT_DELETED },
+      { $inc: { wearCount: 1 }, $set: { lastWornAt: new Date() } },
+      { returnDocument: "after" },
+    );
+  },
+
   // a value of undefined removes the field: Mongoose sends $unset when it saves
   async applyChanges(item: ItemDocument, changes: Record<string, unknown>) {
     for (const [key, value] of Object.entries(changes)) {

@@ -6,6 +6,7 @@ import {
   canArchiveItem,
   canRestoreItem,
   canDeleteItem,
+  canWearItem,
   lookupItemFor,
 } from "../policies/itemPolicy";
 import { isEmptyValue } from "../dtos/itemDto";
@@ -72,6 +73,16 @@ export function makeItemService({ items }: { items: ItemRepository }) {
     async remove(actor: Actor, id: string) {
       const item = await loadAllowedItem(actor, id, canDeleteItem);
       await items.softDelete(item);
+    },
+
+    // "I wore this today"
+    async wear(actor: Actor, id: string) {
+      const item = await loadAllowedItem(actor, id, canWearItem);
+      const updated = await items.recordWear(item);
+      if (!updated) {
+        throw new AppError(404, "item not found");
+      }
+      return updated;
     },
 
     async edit(actor: Actor, id: string, input: EditItemInput) {

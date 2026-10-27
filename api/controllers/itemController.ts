@@ -51,6 +51,12 @@ export async function deleteItem(req: Request, res: Response) {
   res.json({ message: "item deleted" });
 }
 
+export async function wearItem(req: Request, res: Response) {
+  const actor: Actor = res.locals.user;
+  const item = await itemService.wear(actor, req.params.id as string);
+  res.json(toItemDto(item));
+}
+
 export async function editItem(req: Request, res: Response) {
   // with no body at all, Express 5 leaves req.body undefined:
   // treat it like {} so the answer is "nothing to change", not "invalid input"
