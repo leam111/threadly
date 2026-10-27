@@ -27,7 +27,7 @@ This is an individual portfolio project, built step by step to learn the full li
 **Protection**
 - `requireAuth` guard: checks the token, then checks in the database that the user is still active
 - `requirePermission` guard: "does your role allow this action?", read from the database on every request (see [Roles and permissions](#roles-and-permissions))
-- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving, restoring, wearing and deleting items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
+- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving, restoring, wearing and deleting items, uploading, editing and deleting photos, editing the profile, and uploading or deleting the avatar) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
 - Login does the same bcrypt work for every email, so response time does not reveal which emails exist
 - CORS: only the frontend address may call the API, and cookies are allowed
 - Security headers (helmet)
@@ -77,11 +77,34 @@ This is an individual portfolio project, built step by step to learn the full li
 - Country and favorite colors need **no migration**: both fields are optional, so existing profiles simply do not have them yet, and the answer shows `favoriteColors: []` for them
 - The seller rating is not built yet: it comes with the reviews, in the marketplace
 
+**Photos and the avatar** (image storage: Supabase Storage, a private bucket)
+- Up to 5 photos per item: `POST /wardrobe/:id/images` (Body form-data, key `image`, type File, and an optional text key `alt`)
+- One file per request, at most 5 MB, only JPEG, PNG or WebP. The type is decided by the real content
+  of the file (its first bytes, the "magic bytes"), never by the file name or the type the client says.
+  The file stays in memory: nothing is written to the server disk
+- The upload step runs AFTER the login and the permission, so an anonymous person cannot send a big file
+- The bucket is private. The database keeps only the file path, never a link. Every answer gets a fresh
+  **signed link** (`url`, `coverUrl`, `avatarUrl`) that works for 1 hour. If making the link fails, the
+  answer simply has no link (a request never fails because of that). The file path is never sent
+- Paths: `items/<ownerId>/<itemId>/<random id>.<ext>` and `avatars/<ownerId>/<random id>.<ext>`. The
+  extension comes from the real file type, never from the client's file name
+- Item answers have `coverUrl`: a link to the oldest original photo of the item (left out when there
+  is none). A whole page of items needs ONE extra database query and ONE signing call
+- `alt` (a short description, max 150 characters) can be changed with PATCH; `""` clears it
+- Delete: the file is removed from the image storage FIRST, then the database row. If the storage fails,
+  the answer is 502 "image storage failed" and the row stays, so you can simply try again
+- Avatar: `POST /profile/me/avatar` replaces the old one (the old file is removed only after the new one
+  is saved), `DELETE /profile/me/avatar` removes it. The profile answer has `avatarUrl` when there is one
+- `kind` is `original` for every photo a member sends. `cutout` is kept for the AI service later
+- If a storage setting is missing, the server still starts, prints one line with the missing names,
+  and the upload routes answer 503 "image storage is not set up"
+- Known and accepted for now: the limit of 5 photos counts, then saves, so two uploads at the very same
+  moment could make 6. A soft deleted item keeps its photos in the bucket
+
 ### Not built yet
 
 The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
 
-- Image upload: item photos and the avatar
 - Swagger docs
 - The React frontend, the AI service, and the whole marketplace
 
@@ -94,6 +117,7 @@ The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md
 - Validation (`zod`)
 - Rate limiting (`express-rate-limit`)
 - Cookies (`cookie-parser`), CORS (`cors`), security headers (`helmet`)
+- File uploads (`multer`, in memory) and image storage (Supabase Storage, `@supabase/supabase-js`)
 - Code checks: TypeScript (`tsc`), ESLint and Prettier
 
 ## Project layout
@@ -110,14 +134,17 @@ threadly/
     ├── services/         the rules (no Express here); a refusal is an AppError
     ├── repositories/     ALL the database queries (the only files that use the models)
     ├── dtos/             Zod schemas for what comes in, small mappers for what goes out
-    ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, Profile,
-    │                     Permission, Role, RolePermission
-    ├── middleware/       guards (requireAuth, requirePermission) and rate limiters
+    ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, ItemImage,
+    │                     Profile, Permission, Role, RolePermission
+    ├── storage/          imageStorage.ts: the ONLY file that talks to the image storage (Supabase)
+    ├── middleware/       guards (requireAuth, requirePermission), rate limiters, receiveImage (multer)
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
     ├── migrations/       database changes, run with migrate-mongo
     ├── scripts/          the database safety lock, index helpers, the superadmin seed
+    ├── types/            small type files for multer (it has no types of its own)
     └── utils/            AppError, token helpers, password rules, the audit log writer,
-                          the id check, and the allowed values for items and profiles
+                          the id check, the image type check, and the allowed values for items,
+                          profiles and images
 ```
 
 ## How a request flows
@@ -182,8 +209,14 @@ picks its own database code, it is given it.
 | PATCH | `/wardrobe/:id/restore` | `wardrobe:manage_own`, the owner | Put an archived item back in the closet (`in_closet`) |
 | POST | `/wardrobe/:id/wear` | `wardrobe:manage_own`, the owner | Count one wear (wearCount + 1, lastWornAt now) |
 | DELETE | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | Soft delete an item |
+| POST | `/wardrobe/:id/images` | `wardrobe:manage_own`, the owner | Upload a photo (form-data key `image`, optional `alt`) |
+| GET | `/wardrobe/:id/images` | `wardrobe:manage_own`, the owner | List the photos of an item, newest first |
+| PATCH | `/wardrobe/:id/images/:imageId` | `wardrobe:manage_own`, the owner | Change the `alt` of a photo |
+| DELETE | `/wardrobe/:id/images/:imageId` | `wardrobe:manage_own`, the owner | Delete a photo (storage first, then the database) |
 | GET | `/profile/me` | logged in | Read my profile (an empty default if I have none yet) |
 | PATCH | `/profile/me` | logged in | Create or change my profile |
+| POST | `/profile/me/avatar` | logged in | Upload or replace my avatar (form-data key `image`) |
+| DELETE | `/profile/me/avatar` | logged in | Delete my avatar |
 
 ## Roles and permissions
 
@@ -255,14 +288,51 @@ You need Node.js 22 and a free MongoDB Atlas cluster.
    FRONTEND_ORIGIN=http://localhost:5173
    SEED_SUPERADMIN_EMAIL=only-for-the-seed-script
    SEED_SUPERADMIN_PASSWORD=only-for-the-seed-script
+   SUPABASE_URL=your-project-url
+   SUPABASE_SERVICE_ROLE_KEY=your-secret-key
+   SUPABASE_BUCKET=your-bucket-name
 ```
    `FRONTEND_ORIGIN` is optional. It falls back to `http://localhost:5173`.
    `MONGODB_URI_TEST` is a sandbox database, to try migrations and the seed safely. Its database name must contain `_test`.
+   The three `SUPABASE_` values are for photos (see [Image storage](#image-storage-supabase) below).
+   Without them the server still starts, but uploads answer 503.
 3. Start the server:
 ```
    npm run dev
 ```
    You should see `Connected to MongoDB`, then `server is running on port 3000`.
+
+## Image storage (Supabase)
+
+Photos and avatars are kept in **Supabase Storage**, in a PRIVATE bucket. Only the server can reach it.
+The app answers with signed links that work for 1 hour.
+
+**Make a free account and a private bucket**
+1. Go to [supabase.com](https://supabase.com) and sign up (the free plan is enough).
+2. Create a new project: pick a name, a database password (Threadly does not use it, but keep it
+   somewhere safe) and a region close to you. Wait until the project is ready.
+3. In the left menu open **Storage**, then **New bucket**. Give it a name (for example
+   `threadly-images`). Leave **Public bucket OFF**: the bucket must be private.
+   Optional, as a second safety: in the bucket settings, limit the file size to 5 MB and the types to
+   `image/jpeg`, `image/png` and `image/webp`.
+
+**Where to find the three values**
+- `SUPABASE_URL`: Project Settings, **API** (or **Data API**): the **Project URL**
+  (it looks like `https://<something>.supabase.co`).
+- `SUPABASE_SERVICE_ROLE_KEY`: Project Settings, **API Keys**: the **service_role** key, or a
+  **secret** key on newer projects. This key can do EVERYTHING in your project: put it only in
+  `api/.env`. Never in the frontend, never in git, never in a chat or a screenshot.
+- `SUPABASE_BUCKET`: the name of the bucket you made in step 3.
+
+Put the three lines in `api/.env` (the names are also in `api/.env.example`), then restart the server.
+If one is missing, the server prints `image storage is not set up, missing: <names>`.
+
+**Two facts about the free plan**
+- A free project **pauses after about a week without activity**. While it is paused, uploads and
+  deletes answer 502 "image storage failed", and answers have no links. Open the Supabase dashboard,
+  click **Restore project**, and wait a few minutes.
+- There is **no image resizing** on the free plan. Photos are kept and sent at the size they were
+  uploaded (at most 5 MB each).
 
 ## Migrations and the first superadmin
 
@@ -276,6 +346,10 @@ written down once so every database gets exactly the same change. Each one has a
 | `migrations/002-refresh-token-ttl.ts` | A TTL index on `refreshtokens.expiresAt`: MongoDB deletes a refresh token by itself once it has expired |
 | `migrations/003-roles-and-permissions.ts` | Adds the 16 permissions, the 4 roles and the 47 "role has permission" rows (see the matrix above). Its `down` removes only those |
 | `migrations/004-wardrobe-2f.ts` | The richer wardrobe: the status `active` becomes `in_closet`, `isDeleted: false` and `wearCount: 0` are added where missing, and an index on `ownerId` + `status`. Its `down` turns `in_closet` back into `active` and removes `isDeleted`/`wearCount` only where they still hold `false`/`0`. A soft deleted item keeps `isDeleted: true` after `down`, and the old code would show it again |
+| `migrations/005-item-images.ts` | The two indexes of the new `itemimages` collection: `itemId` + `createdAt` (the photos of an item, newest first, and its cover) and `ownerId`. Its `down` drops them. It never changes or deletes a photo |
+
+**Run migration 005 before you upload photos on the real database.** It only adds indexes, so nothing breaks
+without it, but lists of photos and covers get slower as the collection grows.
 
 **Run migration 004 BEFORE you start the server with the richer wardrobe.** Until it has run, old items
 still say `active`: the filter `status=in_closet` misses them, and archiving or restoring them can fail
@@ -309,7 +383,7 @@ The same in PowerShell (a variable is set first, and removed again afterwards):
 ```
 The list of migrations already run is kept in the `changelog` collection.
 
-On the real database, in this order: `migrate:up` first (it runs 001 to 004 if they are
+On the real database, in this order: `migrate:up` first (it runs 001 to 005 if they are
 pending), then the superadmin seed below, then `npm run dev`.
 
 **The first superadmin.** Put `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in `api/.env`, then:
