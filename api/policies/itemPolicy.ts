@@ -42,7 +42,16 @@ export function canRestoreItem(actor: Actor, item: OwnedItem) {
   return isOwner(actor, item);
 }
 
-// look up one item for this person: the id AND the owner must match
+export function canDeleteItem(actor: Actor, item: OwnedItem) {
+  return isOwner(actor, item);
+}
+
+export function canWearItem(actor: Actor, item: OwnedItem) {
+  return isOwner(actor, item);
+}
+
+// look up one item for this person: the id AND the owner must match, and it is not deleted
+// (a soft deleted item is "gone": every route answers 404 for it)
 // the id is checked here, and only here: validId tells the caller if it was valid,
 // item is null when there is no such item or when it is someone else's
 export async function lookupItemFor(actor: Actor, id: string) {

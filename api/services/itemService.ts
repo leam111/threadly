@@ -5,10 +5,15 @@ import {
   canEditItem,
   canArchiveItem,
   canRestoreItem,
+  canDeleteItem,
+  canWearItem,
   lookupItemFor,
 } from "../policies/itemPolicy";
+import { isEmptyValue } from "../dtos/itemDto";
 import type { CreateItemInput, EditItemInput, ListItemsQuery } from "../dtos/itemDto";
 import type { ItemRepository } from "../repositories/itemRepository";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function makeItemService({ items }: { items: ItemRepository }) {
   // checks the id, finds the item for the caller, then asks the policy
@@ -29,8 +34,10 @@ export function makeItemService({ items }: { items: ItemRepository }) {
   return {
     // the owner always comes from the token (actor), never from the body
     create(actor: Actor, input: CreateItemInput) {
-      // an empty optional text (like brand: "") is simply not saved
-      const fields = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ""));
+      // an empty optional value (like brand: "", colors: [] or purchasePrice: null) is simply not saved
+      const fields = Object.fromEntries(
+        Object.entries(input).filter(([, value]) => !isEmptyValue(value)),
+      );
       return items.create(actor.id, fields);
     },
 
@@ -39,9 +46,21 @@ export function makeItemService({ items }: { items: ItemRepository }) {
     async list(actor: Actor, query: ListItemsQuery) {
       const page = query.page;
       const limit = Math.min(query.limit, 50);
+      // "not worn for 30 days" means: last worn before the moment 30 days ago
+      const notWornSince = query.notWornDays
+        ? new Date(Date.now() - query.notWornDays * DAY_MS)
+        : undefined;
+
       const { total, items: list } = await items.listByOwner(
         actor.id,
-        { status: query.status, category: query.category },
+        {
+          status: query.status,
+          category: query.category,
+          color: query.color,
+          season: query.season,
+          styleTag: query.styleTag,
+          notWornSince,
+        },
         page,
         limit,
       );
@@ -57,10 +76,27 @@ export function makeItemService({ items }: { items: ItemRepository }) {
       return items.setStatus(item, "archived");
     },
 
-    // the opposite of archive: put the item back in the active list
+    // the opposite of archive: put the item back in the closet
     async restore(actor: Actor, id: string) {
       const item = await loadAllowedItem(actor, id, canRestoreItem);
-      return items.setStatus(item, "active");
+      return items.setStatus(item, "in_closet");
+    },
+
+    // a soft delete: the item stays in the database, marked as deleted
+    // a second delete answers 404, because the item is already "gone"
+    async remove(actor: Actor, id: string) {
+      const item = await loadAllowedItem(actor, id, canDeleteItem);
+      await items.softDelete(item);
+    },
+
+    // "I wore this today"
+    async wear(actor: Actor, id: string) {
+      const item = await loadAllowedItem(actor, id, canWearItem);
+      const updated = await items.recordWear(item);
+      if (!updated) {
+        throw new AppError(404, "item not found");
+      }
+      return updated;
     },
 
     async edit(actor: Actor, id: string, input: EditItemInput) {
@@ -71,11 +107,11 @@ export function makeItemService({ items }: { items: ItemRepository }) {
 
       const item = await loadAllowedItem(actor, id, canEditItem);
 
-      // an empty text ("") clears brand, color or size: it becomes undefined,
-      // and the field is removed from the database when the item is saved
-      // (name can never be "": Zod asks for at least 1 character)
+      // an empty value ("" for a text or a choice, [] for a list, null for the price) clears
+      // the field: it becomes undefined, and the field is removed from the database when the
+      // item is saved (name can never be "": Zod asks for at least 1 character)
       const changes = Object.fromEntries(
-        Object.entries(input).map(([key, value]) => [key, value === "" ? undefined : value]),
+        Object.entries(input).map(([key, value]) => [key, isEmptyValue(value) ? undefined : value]),
       );
       return items.applyChanges(item, changes);
     },

@@ -27,7 +27,7 @@ This is an individual portfolio project, built step by step to learn the full li
 **Protection**
 - `requireAuth` guard: checks the token, then checks in the database that the user is still active
 - `requirePermission` guard: "does your role allow this action?", read from the database on every request (see [Roles and permissions](#roles-and-permissions))
-- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving and restoring items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
+- Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving, restoring, wearing and deleting items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
 - Login does the same bcrypt work for every email, so response time does not reveal which emails exist
 - CORS: only the frontend address may call the API, and cookies are allowed
 - Security headers (helmet)
@@ -42,12 +42,29 @@ This is an individual portfolio project, built step by step to learn the full li
 - Audit log: records admin user switches, role changes, permission edits and admin logins (success and failure). Read-only, newest first, with pages and a page size cap of 50
 
 **Wardrobe**
-- Add a clothing item: name, category, and optional brand, color and size. Text is trimmed and has a length limit
-- An empty text clears an optional field: in an edit, `brand: ""` removes the brand. When adding an item, an empty optional text is simply not saved. The name can never be empty
-- List your items, newest first, with pages (page size cap of 50) and filters by category and status
-- See, edit, archive and restore one item. There is no delete: archive hides an item, restore brings it back
-- The owner always comes from the token, never from the body or the address. An `ownerId` or `status` sent in the body is ignored
-- An item policy (`policies/itemPolicy.ts`) decides in one place who may see, edit, archive or restore an item. For now, only the owner
+- Add a clothing item: name and category (top, bottom, dress, outerwear, shoes, accessory, bag or other)
+- Optional fields: subCategory, brand, color (free text), colors (up to 5 words), size, pattern, material,
+  season (spring, summer, autumn, winter or all), styleTags (up to 10 words), condition (new_with_tags,
+  like_new, very_good, good or fair), purchasePrice (0 to 1000000, at most 2 decimals) and notes (up to 500 characters).
+  Text is trimmed and has a length limit. The words in colors and styleTags are trimmed, saved in lowercase, and never twice
+- Clearing a field in an edit: `""` clears a text or a choice (like `brand: ""` or `season: ""`), `[]` clears a list,
+  `null` clears the price. When adding an item, an empty value is simply not saved. The name can never be empty
+- The answer always has `colors` and `styleTags` as lists (empty when there are none), and never `__v`, `isDeleted` or `deletedAt`
+- Status: `in_closet` (the normal state), `archived`, and later `listed` and `sold` for the marketplace.
+  Archive sets `archived`, restore sets `in_closet`. Both can be repeated safely (200 again)
+- Note on `color`: the old free-text `color` field stays next to the `colors` list until the AI tagging
+  phase. The `color` filter searches the `colors` list only
+- Note on restore: restore sets `in_closet` from ANY status, even `listed` or `sold`. This must be
+  revisited when the marketplace exists (a listed or sold item should probably not go back to the closet)
+- "I wore it": `POST /wardrobe/:id/wear` adds 1 to `wearCount` and sets `lastWornAt` to now
+- Delete is a SOFT delete: the item stays in the database, marked `isDeleted`, but every route then acts
+  as if it was gone (404 `item not found`) and lists never show it. Nothing is ever really deleted
+- List your items, newest first, with pages (page size cap of 50). Filters, freely combined: status, category,
+  color, season (an "all" season item matches every season), styleTag, and notWornDays (30, 60 or 90:
+  last worn longer ago than that, or never worn)
+- The owner always comes from the token, never from the body or the address. The server-managed fields
+  (`ownerId`, `status`, `wearCount`, `lastWornAt`, `isDeleted`) sent in a body are ignored
+- An item policy (`policies/itemPolicy.ts`) decides in one place who may see, edit, archive, restore, delete or wear an item. For now, only the owner
 - A stranger asking for someone else's item gets 404 `item not found`, the same answer as for an item that does not exist, so nobody learns which items exist
 
 **Member profile**
@@ -61,7 +78,6 @@ This is an individual portfolio project, built step by step to learn the full li
 
 The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
 
-- The richer wardrobe: more item fields, soft delete, "wear", more filters, new status values
 - Profile extras: country and favorite colors
 - Image upload: item photos and the avatar
 - Swagger docs
@@ -157,11 +173,13 @@ picks its own database code, it is given it.
 | PUT | `/admin/roles/:name/permissions` | `permission:edit` | Replace the permission list of a role. Body: `{ permissions: [names] }` |
 | PATCH | `/admin/users/:id/role` | `role:assign` | Give a user another role. Body: `{ role }` |
 | POST | `/wardrobe` | `wardrobe:manage_own` | Add an item to my wardrobe |
-| GET | `/wardrobe` | `wardrobe:manage_own` | List my items. Query: page, limit, category, status |
+| GET | `/wardrobe` | `wardrobe:manage_own` | List my items. Query: page, limit, status, category, color, season, styleTag, notWornDays |
 | GET | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | See one of my items |
-| PATCH | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | Change name, category, brand, color or size |
+| PATCH | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | Change any of the item's own fields |
 | PATCH | `/wardrobe/:id/archive` | `wardrobe:manage_own`, the owner | Archive an item |
-| PATCH | `/wardrobe/:id/restore` | `wardrobe:manage_own`, the owner | Put an archived item back to active |
+| PATCH | `/wardrobe/:id/restore` | `wardrobe:manage_own`, the owner | Put an archived item back in the closet (`in_closet`) |
+| POST | `/wardrobe/:id/wear` | `wardrobe:manage_own`, the owner | Count one wear (wearCount + 1, lastWornAt now) |
+| DELETE | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | Soft delete an item |
 | GET | `/profile/me` | logged in | Read my profile (an empty default if I have none yet) |
 | PATCH | `/profile/me` | logged in | Create or change my profile |
 
@@ -255,6 +273,11 @@ written down once so every database gets exactly the same change. Each one has a
 | `migrations/001-wardrobe-owner-index.ts` | Drops the old `ownerId_1` index on wardrobe items and makes sure `ownerId_1_createdAt_-1` exists |
 | `migrations/002-refresh-token-ttl.ts` | A TTL index on `refreshtokens.expiresAt`: MongoDB deletes a refresh token by itself once it has expired |
 | `migrations/003-roles-and-permissions.ts` | Adds the 16 permissions, the 4 roles and the 47 "role has permission" rows (see the matrix above). Its `down` removes only those |
+| `migrations/004-wardrobe-2f.ts` | The richer wardrobe: the status `active` becomes `in_closet`, `isDeleted: false` and `wearCount: 0` are added where missing, and an index on `ownerId` + `status`. Its `down` turns `in_closet` back into `active` and removes `isDeleted`/`wearCount` only where they still hold `false`/`0`. A soft deleted item keeps `isDeleted: true` after `down`, and the old code would show it again |
+
+**Run migration 004 BEFORE you start the server with the richer wardrobe.** Until it has run, old items
+still say `active`: the filter `status=in_closet` misses them, and archiving or restoring them can fail
+with 500, because `active` is no longer an allowed value.
 
 **Run migration 003 BEFORE you start the server with this version.** Until it has run, the
 permissions table is empty and every admin and wardrobe route answers 403 to everyone.
@@ -278,9 +301,13 @@ From the api folder (Git Bash syntax; the variables go before the command):
    CONFIRM_REAL_DB=yes npm run migrate:status  # the same on the real database (MONGODB_URI)
    CONFIRM_REAL_DB=yes npm run migrate:up
 ```
+The same in PowerShell (a variable is set first, and removed again afterwards):
+```
+   $env:CONFIRM_REAL_DB = "yes"; npm run migrate:status; npm run migrate:up; Remove-Item Env:CONFIRM_REAL_DB
+```
 The list of migrations already run is kept in the `changelog` collection.
 
-On the real database, in this order: `migrate:up` first (it runs 001, 002 and 003 if they are
+On the real database, in this order: `migrate:up` first (it runs 001 to 004 if they are
 pending), then the superadmin seed below, then `npm run dev`.
 
 **The first superadmin.** Put `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in `api/.env`, then:

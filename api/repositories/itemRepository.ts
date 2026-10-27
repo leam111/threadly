@@ -1,13 +1,22 @@
 import { WardrobeItem } from "../models/WardrobeItem";
-import { ITEM_CATEGORIES, ITEM_STATUSES } from "../utils/wardrobeOptions";
+import type { ItemCategory, ItemSeason, ItemStatus } from "../utils/wardrobeOptions";
 
-type ItemStatus = (typeof ITEM_STATUSES)[number];
-type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+export type ItemListFilters = {
+  status?: ItemStatus;
+  category?: ItemCategory;
+  color?: string;
+  season?: ItemSeason;
+  styleTag?: string;
+  notWornSince?: Date;
+};
 
-// one item with this id AND this owner, or null
+// "not soft deleted": $ne also matches an old item that has no isDeleted field yet
+const NOT_DELETED = { isDeleted: { $ne: true } };
+
+// one item with this id AND this owner that is not deleted, or null
 // (the owner is part of the query, so someone else's item is never found)
 function findOwned(ownerId: string, id: string) {
-  return WardrobeItem.findOne({ _id: id, ownerId });
+  return WardrobeItem.findOne({ _id: id, ownerId, ...NOT_DELETED });
 }
 
 // a wardrobe item as the database gives it (a Mongoose document)
@@ -22,18 +31,29 @@ export const itemRepository = {
   },
 
   // one page of this owner's items, newest first, and how many there are in total
-  async listByOwner(
-    ownerId: string,
-    filters: { status?: ItemStatus; category?: ItemCategory },
-    page: number,
-    limit: number,
-  ) {
-    const filter: Record<string, unknown> = { ownerId };
+  async listByOwner(ownerId: string, filters: ItemListFilters, page: number, limit: number) {
+    // the owner and "not deleted" are ALWAYS in the filter; the others are added when given
+    const filter: Record<string, unknown> = { ownerId, ...NOT_DELETED };
     if (filters.status) {
       filter.status = filters.status;
     }
     if (filters.category) {
       filter.category = filters.category;
+    }
+    if (filters.color) {
+      // on a list field, { colors: "red" } means "the list contains red"
+      filter.colors = filters.color;
+    }
+    if (filters.season) {
+      // an "all" season item is worn in every season, so it matches any season filter
+      filter.season = { $in: [...new Set([filters.season, "all"])] };
+    }
+    if (filters.styleTag) {
+      filter.styleTags = filters.styleTag;
+    }
+    if (filters.notWornSince) {
+      // worn last before that date, or never worn (null also matches a missing field)
+      filter.$or = [{ lastWornAt: { $lt: filters.notWornSince } }, { lastWornAt: null }];
     }
 
     const total = await WardrobeItem.countDocuments(filter);
@@ -48,6 +68,23 @@ export const itemRepository = {
     item.status = status;
     await item.save();
     return item;
+  },
+
+  // never a real delete: the item is only marked, and every query above skips it
+  async softDelete(item: ItemDocument) {
+    item.isDeleted = true;
+    item.deletedAt = new Date();
+    await item.save();
+  },
+
+  // wearCount + 1 and lastWornAt = now, in ONE database step ($inc), so two wears at the
+  // same moment both count. Gives the updated item, or null if it was deleted in between
+  recordWear(item: ItemDocument) {
+    return WardrobeItem.findOneAndUpdate(
+      { _id: item._id, ownerId: item.ownerId, ...NOT_DELETED },
+      { $inc: { wearCount: 1 }, $set: { lastWornAt: new Date() } },
+      { returnDocument: "after" },
+    );
   },
 
   // a value of undefined removes the field: Mongoose sends $unset when it saves
