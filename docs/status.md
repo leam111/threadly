@@ -1,6 +1,6 @@
 # Status
 
-Date: 2026-10-27 (after Step 3 was opened)
+Date: 2026-10-27 (after Step 4 was opened)
 
 The plan is now [docs/finish-plan.md](finish-plan.md) (five steps to finish Phase 1 and 2).
 The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are merged.
@@ -18,6 +18,8 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 | #18 | feat/rbac-permissions | f3dbd92 |
 | #19 | refactor/layers (Step 1) | bb57c29 |
 | #20 | feat/wardrobe-2f (Step 2) | 0c267d3 |
+| #21 | feat/profile-extras (Step 3) | 945ec3e |
+| #22 | chore/env-example-supabase (extra) | aa195d6 |
 
 ## The five steps of docs/finish-plan.md
 
@@ -25,8 +27,8 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 |------|--------|-------|
 | 1 | refactor/layers | merged (#19) |
 | 2 | feat/wardrobe-2f | merged (#20) |
-| 3 | feat/profile-extras | pull request open, waiting for the owner's check |
-| 4 | feat/image-upload | not started |
+| 3 | feat/profile-extras | merged (#21) |
+| 4 | feat/image-upload | pull request open, waiting for the owner's check |
 | 5 | feat/swagger-docs | not started |
 
 Rollback tag for this run: `before-layers` (main just before Step 1).
@@ -40,8 +42,9 @@ and `docs/manual-checklist.md`, run by hand.
 
 ## Next
 
-Once Step 3 (`feat/profile-extras`) is merged: Step 4, `feat/image-upload`.
-Step 3 needs no migration.
+Once Step 4 (`feat/image-upload`) is merged: Step 5, `feat/swagger-docs`.
+Step 4 uses **Supabase Storage** instead of the first choice (the owner's change, see the Step 4 section of
+[finish-plan.md](finish-plan.md)). It needs migration 005 and the three `SUPABASE_` values in `api/.env`.
 
 Message to resume:
 
@@ -54,5 +57,7 @@ Migrations 003 and 004 must have run on the real database before the server star
 - Without 003, the permissions table is empty and refuses everyone: every admin and wardrobe route answers 403.
 - Without 004, old items still say `active`: `status=in_closet` misses them, and archive or restore can fail with 500.
 
-Migration 004 was tried on the sandbox only (insert 2 samples, up, down, delete the samples).
-The sandbox has 004 pending again.
+Migration 005 (item image indexes) should run on the real database before photos are uploaded.
+
+Migrations 004 and 005 were tried on the sandbox only (insert 2 samples, up, down, delete the samples).
+The sandbox has 004 and 005 pending again (and an empty `itemimages` collection).

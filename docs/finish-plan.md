@@ -123,17 +123,30 @@ Then `git switch -c <branch>`. (Step 1 also made the rollback tag `before-layers
 
 ## Step 4: image upload
 
-- Packages: cloudinary and multer only. Settings come from process.env: `CLOUDINARY_CLOUD_NAME`,
-  `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`. If any is missing the server still starts (print
-  one line with the missing NAMES only), and the upload routes answer 503 "image storage is not set up".
+Image storage is **Supabase Storage** (changed by the owner: the first choice is not available where they live).
+
+- Packages: @supabase/supabase-js and multer only. Settings come from process.env: `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_BUCKET`. They are used on the server only. The client uses
+  the service key with `auth: { persistSession: false, autoRefreshToken: false }`. If any is missing
+  the server still starts (print one line with the missing NAMES only), and the upload routes answer
+  503 "image storage is not set up". Never log, print or write the key or any signed link.
+- ONE storage adapter file, `api/storage/imageStorage.ts`, with `upload(path, buffer, contentType)`,
+  `remove(paths)` and `signedUrls(paths, seconds)`. Nothing else imports supabase-js. Services and
+  repositories use the adapter only, so the provider can change later.
+- The bucket is PRIVATE (the owner creates it). Store `storagePath` on ItemImage and on the profile
+  avatar. NEVER send `storagePath`, and store no url. Every answer carries a fresh signed url, valid
+  3600 seconds. For lists (item photos, coverUrl on item lists) use ONE batch signing call per page,
+  never one per image. If signing fails, leave the url out and still answer: signing never fails a
+  request.
+- Paths: `items/<ownerId>/<itemId>/<random uuid>.<ext>` and `avatars/<ownerId>/<random uuid>.<ext>`.
+  The extension comes from the detected file type, never from the client's file name.
 - Validation of every upload: field name "image", one file, max 5 MB, only JPEG, PNG or WebP, decided
   by the real file content (magic bytes), never by the client's mimetype or file name. Memory
   storage only (nothing is written to disk).
 - Model ItemImage: itemId (ref WardrobeItem, required), ownerId (required), kind (original or cutout,
-  default original; members can only create original, the cutout is for the AI service later), url,
-  publicId (NEVER sent in answers), alt (trimmed, max 150, optional), width, height, bytes, mimeType,
-  timestamps. Indexes: itemId + createdAt, and ownerId. Cloudinary folders:
-  `threadly/items/<ownerId>` and `threadly/avatars`.
+  default original; members can only create original, the cutout is for the AI service later),
+  storagePath (NEVER sent in answers), alt (trimmed, max 150, optional), width, height, bytes,
+  mimeType, timestamps. Indexes: itemId + createdAt, and ownerId.
 - Routes. Guard order for writes: writeLimiter, requireAuth, requirePermission("wardrobe:manage_own"),
   THEN multer (so an anonymous person cannot send a big file). Reads need requireAuth and the same
   permission.
@@ -142,24 +155,29 @@ Then `git switch -c <branch>`. (Step 1 also made the rollback tag `before-layers
     wrong type 415 "only jpeg, png or webp images"; too large 413 "image too large (max 5 MB)"; more
     than 5 images on the item 409 "this item already has 5 images"; storage not set up 503; storage
     failure 502 "image storage failed" with nothing saved in the database. Answer 201 with the image
-    (no publicId).
+    (no storagePath, with a signed url).
   - GET /wardrobe/:id/images: owner only, newest first, answer `{ items }`.
   - PATCH /wardrobe/:id/images/:imageId: only alt, "" clears, {} gives 400 "nothing to change".
-  - DELETE /wardrobe/:id/images/:imageId: owner only. Delete from Cloudinary FIRST, then the database
-    row. If Cloudinary fails: 502 "image storage failed" and keep the row, so the owner can retry.
-    Success 200 `{ message: "image deleted" }`. An image that is not on that item or not mine:
-    404 "image not found". Bad ids 400 "invalid id".
-  - Item answers get coverUrl (the url of the oldest original image, or left out). Use ONE extra
-    query per page of items, never one per item.
+  - DELETE /wardrobe/:id/images/:imageId: owner only. Delete from image storage FIRST, then the
+    database row. If image storage fails: 502 "image storage failed" and keep the row, so the owner
+    can retry. Success 200 `{ message: "image deleted" }`. An image that is not on that item or not
+    mine: 404 "image not found". Bad ids 400 "invalid id".
+  - Item answers get coverUrl (a signed url of the oldest original image, or left out). Use ONE extra
+    query and ONE signing call per page of items, never one per item.
   - Avatar: POST /profile/me/avatar (same checks, writeLimiter and requireAuth) replaces the old
-    avatar (destroy the old one only after the new one is saved); DELETE /profile/me/avatar. The
-    profile answer includes avatarUrl when set; avatarPublicId is never sent.
+    avatar (remove the old file only after the new one is saved); DELETE /profile/me/avatar (image
+    storage first, then the database). The profile answer includes avatarUrl (signed) when set; the
+    avatar's storagePath is never sent.
 - Migration 005: the indexes of ItemImage (obey the lock, up and down, demo on the sandbox as in
   Step 2).
-- The assistant CANNOT reach Cloudinary (no keys). Do NOT fake or mock it. Write the code, keep tsc
+- The assistant CANNOT reach Supabase (no keys). Do NOT fake or mock it. Write the code, keep tsc
   clean, and write the exact Postman steps in `docs/manual-checklist.md` (Body form-data, key image,
-  type File). The owner tests with their own account. In the README: how to make a free Cloudinary
-  account, and the three variable NAMES for `api/.env`. The owner adds them to `api/.env.example`.
+  type File), the cases for every message, a check that a signed link opens the image, and a note
+  about a paused project. The owner tests with their own account. In the README: how to make a free
+  Supabase account and a private bucket, where to find the three values, the three variable NAMES
+  for `api/.env`, and two free-plan facts: a project pauses after about a week without activity
+  (uploads then fail with 502 until it is restored in the dashboard), and there is no image resizing.
+  The variable names are already in `api/.env.example` (PR #22).
 
 ## Step 5: Swagger
 

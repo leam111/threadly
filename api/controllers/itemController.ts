@@ -1,7 +1,20 @@
 import { Request, Response } from "express";
-import { itemService } from "../container";
+import { itemImageService, itemService } from "../container";
 import { createItemSchema, editItemSchema, listItemsQuerySchema, toItemDto } from "../dtos/itemDto";
 import type { Actor } from "../policies/itemPolicy";
+import type { ItemDocument } from "../repositories/itemRepository";
+
+// the answer for one item or a page of items, each with its coverUrl
+// ONE query and ONE signing call for the whole page, never one per item
+async function toItemAnswers(items: ItemDocument[]) {
+  const covers = await itemImageService.coverUrls(items);
+  return items.map((item) => toItemDto(item, covers.get(String(item._id))));
+}
+
+async function toItemAnswer(item: ItemDocument) {
+  const [answer] = await toItemAnswers([item]);
+  return answer;
+}
 
 export async function createItem(req: Request, res: Response) {
   const result = createItemSchema.safeParse(req.body);
@@ -12,7 +25,7 @@ export async function createItem(req: Request, res: Response) {
 
   const actor: Actor = res.locals.user;
   const item = await itemService.create(actor, result.data);
-  res.status(201).json(toItemDto(item));
+  res.status(201).json(await toItemAnswer(item));
 }
 
 export async function listItems(req: Request, res: Response) {
@@ -24,25 +37,25 @@ export async function listItems(req: Request, res: Response) {
 
   const actor: Actor = res.locals.user;
   const { page, limit, total, items } = await itemService.list(actor, result.data);
-  res.json({ page, limit, total, items: items.map(toItemDto) });
+  res.json({ page, limit, total, items: await toItemAnswers(items) });
 }
 
 export async function getItem(req: Request, res: Response) {
   const actor: Actor = res.locals.user;
   const item = await itemService.get(actor, req.params.id as string);
-  res.json(toItemDto(item));
+  res.json(await toItemAnswer(item));
 }
 
 export async function archiveItem(req: Request, res: Response) {
   const actor: Actor = res.locals.user;
   const item = await itemService.archive(actor, req.params.id as string);
-  res.json(toItemDto(item));
+  res.json(await toItemAnswer(item));
 }
 
 export async function restoreItem(req: Request, res: Response) {
   const actor: Actor = res.locals.user;
   const item = await itemService.restore(actor, req.params.id as string);
-  res.json(toItemDto(item));
+  res.json(await toItemAnswer(item));
 }
 
 export async function deleteItem(req: Request, res: Response) {
@@ -54,7 +67,7 @@ export async function deleteItem(req: Request, res: Response) {
 export async function wearItem(req: Request, res: Response) {
   const actor: Actor = res.locals.user;
   const item = await itemService.wear(actor, req.params.id as string);
-  res.json(toItemDto(item));
+  res.json(await toItemAnswer(item));
 }
 
 export async function editItem(req: Request, res: Response) {
@@ -68,5 +81,5 @@ export async function editItem(req: Request, res: Response) {
 
   const actor: Actor = res.locals.user;
   const item = await itemService.edit(actor, req.params.id as string, result.data);
-  res.json(toItemDto(item));
+  res.json(await toItemAnswer(item));
 }

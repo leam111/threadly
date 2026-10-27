@@ -62,7 +62,8 @@ type StoredProfile = {
 // - text fields (displayName, bio, city, country, each size) only when they have a value
 // - sizes is always an object, styles and favoriteColors always lists, even when empty
 // - updatedAt when the profile exists in the database; never _id or __v
-export function toProfileDto(userId: string, profile: StoredProfile | null) {
+// - avatarUrl (a fresh signed link) when there is an avatar; never avatarStoragePath
+export function toProfileDto(userId: string, profile: StoredProfile | null, avatarUrl?: string) {
   const view: Record<string, unknown> = { userId };
 
   for (const key of ["displayName", "bio", "city", "country"] as const) {
@@ -82,6 +83,10 @@ export function toProfileDto(userId: string, profile: StoredProfile | null) {
   view.sizes = sizes;
   view.styles = profile?.styles ?? [];
   view.favoriteColors = profile?.favoriteColors ?? [];
+
+  if (avatarUrl) {
+    view.avatarUrl = avatarUrl;
+  }
 
   if (profile?.updatedAt) {
     view.updatedAt = profile.updatedAt;

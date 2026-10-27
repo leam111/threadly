@@ -50,6 +50,11 @@ export function canWearItem(actor: Actor, item: OwnedItem) {
   return isOwner(actor, item);
 }
 
+// add, list, edit or delete the photos of an item
+export function canManageItemImages(actor: Actor, item: OwnedItem) {
+  return isOwner(actor, item);
+}
+
 // look up one item for this person: the id AND the owner must match, and it is not deleted
 // (a soft deleted item is "gone": every route answers 404 for it)
 // the id is checked here, and only here: validId tells the caller if it was valid,
