@@ -68,17 +68,19 @@ This is an individual portfolio project, built step by step to learn the full li
 - A stranger asking for someone else's item gets 404 `item not found`, the same answer as for an item that does not exist, so nobody learns which items exist
 
 **Member profile**
-- Each member has one profile: display name, bio, city, sizes (top, bottom, dress, shoes) and up to 5 styles from a fixed list
-- An empty text (`""`) in an edit clears display name, bio, city or one size
+- Each member has one profile: display name, bio, city, country, sizes (top, bottom, dress, shoes), up to 5 styles from a fixed list, and up to 10 favorite colors
+- Favorite colors are free words (like "navy" or "sage green"): trimmed, saved in lowercase, never twice, 1 to 30 characters each
+- An empty text (`""`) in an edit clears display name, bio, city, country or one size. An empty list (`favoriteColors: []`) clears the favorite colors
 - You can only read and change your own profile. There is no id in the address
 - Reading before you have a profile gives an empty default and writes nothing. The first change creates the profile
-- The answer leaves out empty text fields. `sizes` is always an object and `styles` always a list, even when empty. It includes `updatedAt` once the profile exists, and never `_id`
+- The answer leaves out empty text fields. `sizes` is always an object, `styles` and `favoriteColors` always lists, even when empty. It includes `updatedAt` once the profile exists, and never `_id`
+- Country and favorite colors need **no migration**: both fields are optional, so existing profiles simply do not have them yet, and the answer shows `favoriteColors: []` for them
+- The seller rating is not built yet: it comes with the reviews, in the marketplace
 
 ### Not built yet
 
 The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
 
-- Profile extras: country and favorite colors
 - Image upload: item photos and the avatar
 - Swagger docs
 - The React frontend, the AI service, and the whole marketplace
