@@ -180,7 +180,7 @@ a step says so.
 ## PROFILE
 
 - [ ] `GET /profile/me` (a user with no profile yet) → **200** with
-      `{ "userId": "<their id>", "sizes": {}, "styles": [] }` and no `updatedAt`
+      `{ "userId": "<their id>", "sizes": {}, "styles": [], "favoriteColors": [] }` and no `updatedAt`
 - [ ] `PATCH /profile/me` (Owner) with `{ "displayName": "Owner One", "city": "Paris", "styles": ["minimal"] }`
       → **200** with those values and an `updatedAt`. `GET /profile/me` shows the same
 - [ ] `GET /profile/me` (Stranger) → **200** with the stranger's OWN profile, never the owner's
@@ -289,3 +289,17 @@ Use two Postman tabs, Owner and Stranger, as above.
 - [ ] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
 - [ ] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
       and a `deletedAt`
+
+## STEP 3: PROFILE EXTRAS
+
+No migration is needed. Use the Owner tab.
+
+- [ ] `PATCH /profile/me` with `{ "country": "  France ", "favoriteColors": [" Sage Green ", "NAVY"] }`
+      → **200** with `country` "France" and `favoriteColors` ["sage green", "navy"]. `GET /profile/me` shows the same
+- [ ] `PATCH /profile/me` with `{ "favoriteColors": ["red", "Red"] }` → **400** "invalid input" (the same color twice)
+- [ ] `PATCH /profile/me` with 11 favorite colors → **400** "invalid input"
+- [ ] `PATCH /profile/me` with `{ "favoriteColors": [" "] }` → **400** "invalid input" (an empty word)
+- [ ] `PATCH /profile/me` with a `country` of 61 characters → **400** "invalid input"
+- [ ] `PATCH /profile/me` with `{ "country": "", "favoriteColors": [] }` → **200**: no `country` in the answer,
+      and `favoriteColors: []`. The other fields (like `city`) did not change
+- [ ] `GET /profile/me` (Stranger, never set a color) → **200** with `favoriteColors: []` and no `country`

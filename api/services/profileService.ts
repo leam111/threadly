@@ -15,11 +15,13 @@ export function makeProfileService({ profiles }: { profiles: ProfileRepository }
     async updateMine(userId: string, input: EditProfileInput) {
       // build two lists: fields to save (set) and fields to remove (unset)
       // an empty text "" goes to the remove list, so we never save an empty text
+      // favoriteColors: [] also goes to the remove list (styles: [] is saved as an empty list, as before)
       // sizes are handled one by one ("sizes.top"), so changing one size keeps the others
       const set: Record<string, unknown> = {};
       const unset: string[] = [];
       function addChange(path: string, value: unknown) {
-        if (value === "") {
+        const emptyColors = path === "favoriteColors" && Array.isArray(value) && value.length === 0;
+        if (value === "" || emptyColors) {
           unset.push(path);
         } else {
           set[path] = value;
