@@ -59,7 +59,11 @@ This is an individual portfolio project, built step by step to learn the full li
 
 ### Not built yet
 
-- Splitting the routes into controller, service and repository layers
+The plan to finish Phase 1 and 2 is in [docs/finish-plan.md](docs/finish-plan.md). Still to come:
+
+- The richer wardrobe: more item fields, soft delete, "wear", more filters, new status values
+- Profile extras: country and favorite colors
+- Image upload: item photos and the avatar
 - Swagger docs
 - The React frontend, the AI service, and the whole marketplace
 
@@ -81,17 +85,57 @@ threadly/
 └── api/
     ├── index.ts          starts the server
     ├── app.ts            builds the app: middleware, routes, 404 and error handler
+    ├── container.ts      puts the pieces together: gives each service its repositories
     ├── db.ts             connects to MongoDB
+    ├── routes/           thin routers: which guards run, then which controller
+    ├── controllers/      read the request, call a service, send the answer
+    ├── services/         the rules (no Express here); a refusal is an AppError
+    ├── repositories/     ALL the database queries (the only files that use the models)
+    ├── dtos/             Zod schemas for what comes in, small mappers for what goes out
     ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, Profile,
     │                     Permission, Role, RolePermission
-    ├── routes/           auth.ts, admin.ts, wardrobe.ts and profile.ts
     ├── middleware/       guards (requireAuth, requirePermission) and rate limiters
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
     ├── migrations/       database changes, run with migrate-mongo
     ├── scripts/          the database safety lock, index helpers, the superadmin seed
-    └── utils/            token helpers, password rules, the audit log writer,
-                          and the allowed values for items and profiles
+    └── utils/            AppError, token helpers, password rules, the audit log writer,
+                          the id check, and the allowed values for items and profiles
 ```
+
+## How a request flows
+
+Each layer has one job, and only talks to the layer below it.
+Example: `PATCH /wardrobe/:id` (edit one of my items).
+
+```
+  Postman / the frontend
+          │  PATCH /wardrobe/123  { "brand": "" }
+          ▼
+  route         routes/wardrobe.ts
+                guards in order: writeLimiter → requireAuth → requirePermission("wardrobe:manage_own")
+          ▼
+  controller    controllers/itemController.ts
+                checks the body with the Zod schema (dtos/itemDto.ts)
+                bad body → 400 "invalid input" and stop
+          ▼
+  service       services/itemService.ts
+                the rules: "nothing to change"? is the id valid? is it my item (policies/itemPolicy.ts)?
+                a "no" is thrown as AppError(404, "item not found")
+          ▼
+  repository    repositories/itemRepository.ts
+                the database query: find the item with this id AND my id as owner, then save it
+          ▼
+  model         models/WardrobeItem.ts  →  MongoDB
+```
+
+On the way back, the service gives the item to the controller, which turns it into the answer with
+a DTO mapper (`toItemDto`) and sends it. When a service throws an `AppError`, the error handler in
+`app.ts` answers `{ message }` with its status. Any other error answers 500 "something went wrong",
+and the details stay in the server log.
+
+`container.ts` builds every service once and hands it its repositories, like
+`makeItemService({ items: itemRepository })`. This is simple "dependency injection": a service never
+picks its own database code, it is given it.
 
 ## Endpoints
 

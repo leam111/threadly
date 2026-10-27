@@ -186,6 +186,45 @@ a step says so.
 - [ ] `GET /profile/me` (Stranger) → **200** with the stranger's OWN profile, never the owner's
 - [ ] `PATCH /profile/me` (Owner) with `{}` → **400** "nothing to change"
 
+## STEP 1: LAYERS (no change in behavior)
+
+Step 1 (`refactor/layers`) only moved code into controllers, services, repositories and DTOs.
+Every answer must be exactly the same as before.
+
+- [ ] Run EVERY group above again (AUTH, ADMIN, PERMISSIONS, WARDROBE, PROFILE): every status and
+      message is the same as written there
+
+Then these checks, for the parts the move touched most:
+
+**The error handler**
+- [ ] `GET /nothing-here` → **404** "route not found"
+- [ ] `POST /auth/login` with Body raw JSON `{ "email": ` (broken JSON, header
+      `Content-Type: application/json`) → **400** "bad request"
+- [ ] A service refusal keeps its own status and message: `GET /wardrobe/000000000000000000000000`
+      (Owner) → **404** "item not found"
+
+**The order of the checks did not change**
+- [ ] `PATCH /wardrobe/abc` (Owner) with `{}` → **400** "nothing to change" (checked before the id)
+- [ ] `PATCH /wardrobe/abc` (Owner) with `{ "name": "Blue" }` → **400** "invalid id"
+- [ ] `PATCH /wardrobe/abc` (Owner) with `{ "category": "hat" }` → **400** "invalid input" (the body is
+      checked first)
+- [ ] `PATCH /admin/users/abc/active` (`<admin-token>`) with `{}` → **400** "invalid input";
+      with `{ "isActive": true }` → **400** "invalid id!"
+- [ ] `PATCH /admin/users/000000000000000000000000/role` (`<superadmin-token>`) with `{ "role": "boss" }`
+      → **404** "user not found" (the user is checked before the role)
+
+**Auth messages that differ only by a capital letter (they must stay as they are)**
+- [ ] `POST /auth/refresh` with no cookie (delete it in Postman's Cookies window) → **401** "log in first"
+- [ ] `POST /auth/logout-others` with `<owner-token>` and no cookie → **401** "log in first"
+- [ ] `GET /auth/me` with no token → **401** "Log in first"
+- [ ] `POST /auth/logout` with no cookie → **200** "logged out"
+
+**Answers keep their shape**
+- [ ] `GET /wardrobe` (Owner) → **200** with `page`, `limit`, `total`, `items`, and no `__v` in any item
+- [ ] `POST /auth/login` → **200** with `accessToken` and `user` (`id`, `email`, `role` only)
+- [ ] `GET /admin/roles` (`<superadmin-token>`) → **200**, each item has `name`, `description`,
+      `isSystem` and `permissions`
+
 ## After PR 5
 
 To fill in when PR 5 (`feat/wardrobe-2f`) is built: the new item fields, soft delete, wear,

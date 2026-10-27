@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { Role } from "../models/Role";
-import { RolePermission } from "../models/RolePermission";
+import { roleRepository } from "../repositories/roleRepository";
 import { PermissionName } from "../utils/permissions";
 
 // use after requireAuth: "does the role of this user allow this action?"
@@ -17,8 +16,8 @@ export function requirePermission(name: PermissionName) {
 
     let allowed = false;
     try {
-      const role = await Role.exists({ name: user.role });
-      const row = role ? await RolePermission.exists({ role: user.role, permission: name }) : null;
+      const role = await roleRepository.exists(user.role);
+      const row = role ? await roleRepository.hasPermission(user.role, name) : null;
       allowed = row !== null;
     } catch (error) {
       // the message only: never the whole error, the request or the token
