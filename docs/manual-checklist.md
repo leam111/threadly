@@ -155,7 +155,7 @@ a step says so.
       → **400** "invalid input"
 - [ ] `POST /wardrobe` (Owner) with
       `{ "name": "Blue shirt", "category": "top", "ownerId": "<stranger-id>", "status": "archived" }`
-      → **201**, and the answer has `ownerId` = `<owner-id>` and `status` = "active"
+      → **201**, and the answer has `ownerId` = `<owner-id>` and `status` = "in_closet"
       (the fake ownerId and status were ignored). Keep the `_id` as `<owner-item-id>`
 - [ ] `GET /wardrobe` (Owner) → **200**, only the owner's items
 - [ ] `GET /wardrobe?ownerId=<owner-id>` (Stranger, with no items of their own)
@@ -167,7 +167,7 @@ a step says so.
 - [ ] `GET /wardrobe/abc` (Owner) → **400** "invalid id"
 - [ ] `GET /wardrobe/<owner-item-id>` with no token → **401** "Log in first"
 - [ ] `PATCH /wardrobe/<owner-item-id>/archive` (Owner) → **200**, `status` = "archived"
-- [ ] `PATCH /wardrobe/<owner-item-id>/restore` (Owner) → **200**, `status` = "active"
+- [ ] `PATCH /wardrobe/<owner-item-id>/restore` (Owner) → **200**, `status` = "in_closet"
 - [ ] Note the item's `updatedAt`. `PATCH /wardrobe/<owner-item-id>/archive` (Stranger)
       → **404** "item not found". `PATCH /wardrobe/<owner-item-id>/restore` (Stranger)
       → **404** "item not found". Then `GET /wardrobe/<owner-item-id>` (Owner): `updatedAt` and
@@ -225,9 +225,64 @@ Then these checks, for the parts the move touched most:
 - [ ] `GET /admin/roles` (`<superadmin-token>`) → **200**, each item has `name`, `description`,
       `isSystem` and `permissions`
 
-## After PR 5
+## STEP 2: THE RICHER WARDROBE
 
-To fill in when PR 5 (`feat/wardrobe-2f`) is built: the new item fields, soft delete, wear,
-the new filters and the new status values.
+**Run migration 004 on the real database BEFORE starting the server** (see the README, "Migrations").
+Use two Postman tabs, Owner and Stranger, as above.
 
-- [ ] ...
+**New fields**
+- [ ] `POST /wardrobe` (Owner) with
+      `{ "name": "Tote", "category": "bag", "subCategory": "tote", "colors": [" Navy ", "Red"], "pattern": "plain", "material": "leather", "season": "all", "styleTags": ["Minimal"], "condition": "like_new", "purchasePrice": 49.99, "notes": "gift" }`
+      → **201**: `colors` = ["navy", "red"], `styleTags` = ["minimal"], `status` = "in_closet",
+      `wearCount` = 0, and no `__v`, `isDeleted` or `deletedAt`. Keep the `_id` as `<bag-id>`
+- [ ] `POST /wardrobe` (Owner) with `{ "name": "Cap", "category": "top", "wearCount": 50, "lastWornAt": "2020-01-01", "status": "sold", "isDeleted": true, "ownerId": "<stranger-id>" }`
+      → **201** with `wearCount` 0, no `lastWornAt`, `status` "in_closet", `ownerId` = `<owner-id>`
+      (every server-managed field was ignored). The answer has `colors: []` and `styleTags: []`
+- [ ] `POST /wardrobe` with `"colors": ["red", "Red"]` → **400** "invalid input" (the same color twice)
+- [ ] `POST /wardrobe` with 6 colors → **400** "invalid input". With 11 styleTags → **400** "invalid input"
+- [ ] `POST /wardrobe` with `"purchasePrice": 10.999` → **400** "invalid input". With `-1` or
+      `1000000.01` → **400** "invalid input". With `0.1` → **201**
+- [ ] `POST /wardrobe` with `"season": "monsoon"` or `"condition": "broken"` → **400** "invalid input"
+- [ ] `POST /wardrobe` with `"notes"` of 501 characters → **400** "invalid input"
+
+**Edit and clear**
+- [ ] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "season": "", "colors": [], "purchasePrice": null, "notes": "" }`
+      → **200**: no `season`, no `purchasePrice`, no `notes`, and `colors: []`
+- [ ] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "wearCount": 5, "status": "listed" }` → **400** "nothing to change"
+      (both keys are dropped, so nothing is left)
+
+**Status, archive and restore**
+- [ ] `PATCH /wardrobe/<bag-id>/archive` twice → **200** both times, `status` "archived"
+- [ ] `PATCH /wardrobe/<bag-id>/restore` twice → **200** both times, `status` "in_closet"
+- [ ] `GET /wardrobe?status=active` → **400** "invalid query" (the old name is gone).
+      `GET /wardrobe?status=in_closet` → **200**
+
+**Wear**
+- [ ] `POST /wardrobe/<bag-id>/wear` (Owner) → **200**, `wearCount` 1 and a `lastWornAt` of now.
+      Again → **200**, `wearCount` 2
+- [ ] `POST /wardrobe/abc/wear` (Owner) → **400** "invalid id"
+
+**A stranger changes nothing (404, and updatedAt stays)**
+- [ ] Note `updatedAt` and `wearCount` of `<bag-id>` (Owner, `GET /wardrobe/<bag-id>`).
+      As the Stranger: `PATCH /wardrobe/<bag-id>` with `{ "name": "Stolen" }` → **404** "item not found";
+      `POST /wardrobe/<bag-id>/wear` → **404** "item not found";
+      `DELETE /wardrobe/<bag-id>` → **404** "item not found".
+      Then as the Owner, `GET /wardrobe/<bag-id>` → **200** with the same name, `wearCount` and `updatedAt`
+
+**Filters** (create a few items first; the Cap above was never worn)
+- [ ] `GET /wardrobe?category=bag` → only bags. `GET /wardrobe?color=NAVY` → items whose `colors` has "navy"
+- [ ] `GET /wardrobe?season=all&styleTag=minimal` → only items with both
+- [ ] `GET /wardrobe?notWornDays=30` → the Cap is in the list (never worn), the Tote is not (worn today)
+- [ ] `GET /wardrobe?notWornDays=45` → **400** "invalid query". `GET /wardrobe?season=monsoon` → **400** "invalid query"
+- [ ] `GET /wardrobe?limit=500` → **200** with `limit` 50
+- [ ] `GET /wardrobe?ownerId=<owner-id>` (Stranger) → **200** with only the Stranger's items
+
+**Soft delete**
+- [ ] `DELETE /wardrobe/abc` (Owner) → **400** "invalid id"
+- [ ] `DELETE /wardrobe/<bag-id>` (Owner) → **200** "item deleted"
+- [ ] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
+      `PATCH /wardrobe/<bag-id>/archive`, `PATCH /wardrobe/<bag-id>/restore`, `POST /wardrobe/<bag-id>/wear`
+      and `DELETE /wardrobe/<bag-id>` → all **404** "item not found"
+- [ ] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
+- [ ] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
+      and a `deletedAt`
