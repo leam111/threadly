@@ -1,8 +1,5 @@
 import { WardrobeItem } from "../models/WardrobeItem";
-import { ITEM_CATEGORIES, ITEM_STATUSES } from "../utils/wardrobeOptions";
-
-type ItemStatus = (typeof ITEM_STATUSES)[number];
-type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+import type { ItemCategory, ItemStatus } from "../utils/wardrobeOptions";
 
 // one item with this id AND this owner, or null
 // (the owner is part of the query, so someone else's item is never found)

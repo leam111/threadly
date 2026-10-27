@@ -57,10 +57,10 @@ export function makeItemService({ items }: { items: ItemRepository }) {
       return items.setStatus(item, "archived");
     },
 
-    // the opposite of archive: put the item back in the active list
+    // the opposite of archive: put the item back in the closet
     async restore(actor: Actor, id: string) {
       const item = await loadAllowedItem(actor, id, canRestoreItem);
-      return items.setStatus(item, "active");
+      return items.setStatus(item, "in_closet");
     },
 
     async edit(actor: Actor, id: string, input: EditItemInput) {
