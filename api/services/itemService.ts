@@ -7,6 +7,7 @@ import {
   canRestoreItem,
   lookupItemFor,
 } from "../policies/itemPolicy";
+import { isEmptyValue } from "../dtos/itemDto";
 import type { CreateItemInput, EditItemInput, ListItemsQuery } from "../dtos/itemDto";
 import type { ItemRepository } from "../repositories/itemRepository";
 
@@ -29,8 +30,10 @@ export function makeItemService({ items }: { items: ItemRepository }) {
   return {
     // the owner always comes from the token (actor), never from the body
     create(actor: Actor, input: CreateItemInput) {
-      // an empty optional text (like brand: "") is simply not saved
-      const fields = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== ""));
+      // an empty optional value (like brand: "", colors: [] or purchasePrice: null) is simply not saved
+      const fields = Object.fromEntries(
+        Object.entries(input).filter(([, value]) => !isEmptyValue(value)),
+      );
       return items.create(actor.id, fields);
     },
 
@@ -71,11 +74,11 @@ export function makeItemService({ items }: { items: ItemRepository }) {
 
       const item = await loadAllowedItem(actor, id, canEditItem);
 
-      // an empty text ("") clears brand, color or size: it becomes undefined,
-      // and the field is removed from the database when the item is saved
-      // (name can never be "": Zod asks for at least 1 character)
+      // an empty value ("" for a text or a choice, [] for a list, null for the price) clears
+      // the field: it becomes undefined, and the field is removed from the database when the
+      // item is saved (name can never be "": Zod asks for at least 1 character)
       const changes = Object.fromEntries(
-        Object.entries(input).map(([key, value]) => [key, value === "" ? undefined : value]),
+        Object.entries(input).map(([key, value]) => [key, isEmptyValue(value) ? undefined : value]),
       );
       return items.applyChanges(item, changes);
     },
