@@ -1,5 +1,14 @@
 import { WardrobeItem } from "../models/WardrobeItem";
-import type { ItemCategory, ItemStatus } from "../utils/wardrobeOptions";
+import type { ItemCategory, ItemSeason, ItemStatus } from "../utils/wardrobeOptions";
+
+export type ItemListFilters = {
+  status?: ItemStatus;
+  category?: ItemCategory;
+  color?: string;
+  season?: ItemSeason;
+  styleTag?: string;
+  notWornSince?: Date;
+};
 
 // "not soft deleted": $ne also matches an old item that has no isDeleted field yet
 const NOT_DELETED = { isDeleted: { $ne: true } };
@@ -22,18 +31,28 @@ export const itemRepository = {
   },
 
   // one page of this owner's items, newest first, and how many there are in total
-  async listByOwner(
-    ownerId: string,
-    filters: { status?: ItemStatus; category?: ItemCategory },
-    page: number,
-    limit: number,
-  ) {
+  async listByOwner(ownerId: string, filters: ItemListFilters, page: number, limit: number) {
+    // the owner and "not deleted" are ALWAYS in the filter; the others are added when given
     const filter: Record<string, unknown> = { ownerId, ...NOT_DELETED };
     if (filters.status) {
       filter.status = filters.status;
     }
     if (filters.category) {
       filter.category = filters.category;
+    }
+    if (filters.color) {
+      // on a list field, { colors: "red" } means "the list contains red"
+      filter.colors = filters.color;
+    }
+    if (filters.season) {
+      filter.season = filters.season;
+    }
+    if (filters.styleTag) {
+      filter.styleTags = filters.styleTag;
+    }
+    if (filters.notWornSince) {
+      // worn last before that date, or never worn (null also matches a missing field)
+      filter.$or = [{ lastWornAt: { $lt: filters.notWornSince } }, { lastWornAt: null }];
     }
 
     const total = await WardrobeItem.countDocuments(filter);

@@ -13,6 +13,8 @@ import { isEmptyValue } from "../dtos/itemDto";
 import type { CreateItemInput, EditItemInput, ListItemsQuery } from "../dtos/itemDto";
 import type { ItemRepository } from "../repositories/itemRepository";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function makeItemService({ items }: { items: ItemRepository }) {
   // checks the id, finds the item for the caller, then asks the policy
   // a stranger gets the same 404 as an id that does not exist (see itemPolicy.ts)
@@ -44,9 +46,21 @@ export function makeItemService({ items }: { items: ItemRepository }) {
     async list(actor: Actor, query: ListItemsQuery) {
       const page = query.page;
       const limit = Math.min(query.limit, 50);
+      // "not worn for 30 days" means: last worn before the moment 30 days ago
+      const notWornSince = query.notWornDays
+        ? new Date(Date.now() - query.notWornDays * DAY_MS)
+        : undefined;
+
       const { total, items: list } = await items.listByOwner(
         actor.id,
-        { status: query.status, category: query.category },
+        {
+          status: query.status,
+          category: query.category,
+          color: query.color,
+          season: query.season,
+          styleTag: query.styleTag,
+          notWornSince,
+        },
         page,
         limit,
       );

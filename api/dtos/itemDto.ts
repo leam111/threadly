@@ -4,6 +4,7 @@ import {
   ITEM_STATUSES,
   ITEM_SEASONS,
   ITEM_CONDITIONS,
+  NOT_WORN_DAYS,
   ITEM_NAME_MAX,
   ITEM_TEXT_MAX,
   ITEM_PATTERN_MAX,
@@ -75,6 +76,12 @@ export const listItemsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).default(20),
   status: z.enum(ITEM_STATUSES).optional(),
   category: z.enum(ITEM_CATEGORIES).optional(),
+  // one color or one style tag, compared in lowercase like the saved lists
+  color: word.optional(),
+  season: z.enum(ITEM_SEASONS).optional(),
+  styleTag: word.optional(),
+  // only 30, 60 or 90: "not worn for that many days, or never worn"
+  notWornDays: z.enum(NOT_WORN_DAYS).transform(Number).optional(),
 });
 
 export type CreateItemInput = z.infer<typeof createItemSchema>;
