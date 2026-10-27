@@ -272,6 +272,9 @@ Use two Postman tabs, Owner and Stranger, as above.
 **Filters** (create a few items first; the Cap above was never worn)
 - [ ] `GET /wardrobe?category=bag` → only bags. `GET /wardrobe?color=NAVY` → items whose `colors` has "navy"
 - [ ] `GET /wardrobe?season=all&styleTag=minimal` → only items with both
+- [ ] Make one item with `"season": "summer"` and one with `"season": "winter"` (the Tote has "all").
+      `GET /wardrobe?season=summer` → the summer item AND the Tote ("all" matches every season), not the
+      winter item. `GET /wardrobe?season=all` → only items marked "all"
 - [ ] `GET /wardrobe?notWornDays=30` → the Cap is in the list (never worn), the Tote is not (worn today)
 - [ ] `GET /wardrobe?notWornDays=45` → **400** "invalid query". `GET /wardrobe?season=monsoon` → **400** "invalid query"
 - [ ] `GET /wardrobe?limit=500` → **200** with `limit` 50

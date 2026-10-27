@@ -45,7 +45,8 @@ export const itemRepository = {
       filter.colors = filters.color;
     }
     if (filters.season) {
-      filter.season = filters.season;
+      // an "all" season item is worn in every season, so it matches any season filter
+      filter.season = { $in: [...new Set([filters.season, "all"])] };
     }
     if (filters.styleTag) {
       filter.styleTags = filters.styleTag;
