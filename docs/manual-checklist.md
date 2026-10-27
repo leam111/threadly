@@ -77,6 +77,78 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
 - [ ] Switch the member back on: `PATCH /admin/users/<member-id>/active` with `{ "isActive": true }`
       → **200** "user updated" with `isActive: true`
 
+## PERMISSIONS
+
+**Run migration 003 on the real database BEFORE starting the server** (`CONFIRM_REAL_DB=yes npm run migrate:up`
+from `api/`), because an empty permissions table refuses everyone, even a superadmin.
+
+You need `<superadmin-token>` (with `<superadmin-id>`), `<admin-token>` (with `<admin-id>`) and
+`<owner-token>` (a member, with `<member-id>`). Use a second superadmin, `<superadmin2-id>`, only where
+a step says so.
+
+**Who gets in**
+- [ ] `GET /admin/users` with `<owner-token>` (a member) → **403** "You are not allowed here".
+      The same for `GET /admin/audit`, `GET /admin/roles` and `PATCH /admin/users/<admin-id>/active`
+- [ ] `GET /admin/users` with `<admin-token>` → **200**
+- [ ] `GET /admin/roles` and `GET /admin/permissions` with `<admin-token>` → **403** "You are not allowed here"
+- [ ] `PUT /admin/roles/member/permissions` and `PATCH /admin/users/<member-id>/role` with `<admin-token>`
+      → **403** "You are not allowed here"
+- [ ] `GET /wardrobe` with `<owner-token>` → **200** (members have `wardrobe:manage_own`)
+- [ ] `GET /profile/me` and `GET /auth/me` with `<owner-token>` → **200** (no permission needed)
+- [ ] `GET /admin/permissions` with `<superadmin-token>` → **200** with 16 items
+- [ ] `GET /admin/roles` with `<superadmin-token>` → **200** with 4 roles: member 7, moderator 10,
+      admin 14, superadmin 16 permissions
+
+**Edit a role (the effect is immediate)**
+- [ ] `PUT /admin/roles/admin/permissions` with `<superadmin-token>` and the admin list from
+      `GET /admin/roles` WITHOUT `user:view` → **200** "role updated". At once, with no new login,
+      `GET /admin/users` with `<admin-token>` → **403** "You are not allowed here"
+- [ ] Put the full admin list back (with `user:view`) → **200** "role updated". At once
+      `GET /admin/users` with `<admin-token>` → **200**
+- [ ] `GET /admin/audit?action=permission.edit` with `<superadmin-token>` → **200**, the newest rows
+      have `details.role` = "admin", the `added` and `removed` lists, an `ip`, and no `targetId`
+- [ ] `PUT /admin/roles/admin/permissions` with `{ "permissions": ["user:view", "made:up"] }`
+      → **400** "invalid input"
+- [ ] `PUT /admin/roles/admin/permissions` with `{ "permissions": "user:view" }` (not a list)
+      → **400** "invalid input"
+- [ ] `PUT /admin/roles/nobody/permissions` with `{ "permissions": [] }` → **404** "role not found"
+- [ ] `PUT /admin/roles/superadmin/permissions` with the superadmin list WITHOUT `role:assign`
+      → **400** "superadmin must keep role:assign and permission:edit". The same without
+      `permission:edit`. `GET /admin/roles` still shows 16 for superadmin
+
+**Change a user's role**
+- [ ] `PATCH /admin/users/abc/role` with `{ "role": "moderator" }` → **400** "invalid id!"
+- [ ] `PATCH /admin/users/000000000000000000000000/role` with `{ "role": "moderator" }`
+      → **404** "user not found"
+- [ ] `PATCH /admin/users/<member-id>/role` with `{ "role": "boss" }` → **400** "invalid input".
+      With `{}` → **400** "invalid input"
+- [ ] `PATCH /admin/users/<superadmin-id>/role` with `<superadmin-token>` (your own id) and
+      `{ "role": "admin" }` → **400** "you cannot change your own role"
+- [ ] `PATCH /admin/users/<member-id>/role` with `{ "role": "member" }` (the role they already have)
+      → **400** "nothing to change"
+- [ ] `PATCH /admin/users/<member-id>/role` with `{ "role": "moderator" }` → **200** "role updated"
+      with `role: "moderator"`. `GET /admin/audit?action=role.assign` → the newest row has
+      `targetId` = `<member-id>`, details `from: "member"`, `to: "moderator"`, and an `ip`.
+      Then put them back with `{ "role": "member" }` → **200**
+- [ ] Only a superadmin for superadmins: as the superadmin, give the admin role `role:assign` with
+      `PUT /admin/roles/admin/permissions` (the admin list plus `role:assign`). Then with `<admin-token>`:
+      `PATCH /admin/users/<member-id>/role` with `{ "role": "superadmin" }`
+      → **403** "only a superadmin can change a superadmin", and
+      `PATCH /admin/users/<superadmin-id>/role` with `{ "role": "member" }` → **403** (same message).
+      Then take `role:assign` away from admin again (the 14 permissions) → **200**
+- [ ] Last superadmin, with ONE active superadmin: `PATCH /admin/users/<superadmin-id>/role` with
+      `{ "role": "admin" }` and `PATCH /admin/users/<superadmin-id>/active` with `{ "isActive": false }`,
+      both with `<superadmin-token>` → **400** "you cannot change your own role" and **400** "you cannot
+      switch off your own account". With `<admin-token>` → **403** "only a superadmin can change a superadmin"
+      (for `/role`, first give admin `role:assign` as above, then take it away again).
+      So the last superadmin always stays.
+      Note: the message **400** "there must be at least one superadmin" cannot be reached by hand. The
+      person asking is always another active superadmin, so there are at least two. It is a safety net
+      in the code in case the other rules change later. (It counts, then saves: two requests at the
+      very same moment could both pass. Not a problem with one or two superadmins in practice.)
+- [ ] With TWO active superadmins: `PATCH /admin/users/<superadmin2-id>/role` with `<superadmin-token>`
+      and `{ "role": "admin" }` → **200** "role updated" (one may go, because another one stays)
+
 ## WARDROBE
 
 - [ ] `POST /wardrobe` (Owner) with `{ "name": "Blue shirt", "category": "hat" }`

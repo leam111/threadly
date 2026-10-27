@@ -26,7 +26,7 @@ This is an individual portfolio project, built step by step to learn the full li
 
 **Protection**
 - `requireAuth` guard: checks the token, then checks in the database that the user is still active
-- `requireRole` guard: a simple list of allowed roles, 403 for the wrong role
+- `requirePermission` guard: "does your role allow this action?", read from the database on every request (see [Roles and permissions](#roles-and-permissions))
 - Rate limits: login 6 per minute, register 5 per hour, refresh 10 per minute, and change password, deactivate and logout-others 5 per 15 minutes. The wardrobe and profile write routes (adding, editing, archiving and restoring items, and editing the profile) share one limit of 60 per 15 minutes. Limits count per IP address and live in memory, so a server restart resets them
 - Login does the same bcrypt work for every email, so response time does not reveal which emails exist
 - CORS: only the frontend address may call the API, and cookies are allowed
@@ -37,8 +37,9 @@ This is an individual portfolio project, built step by step to learn the full li
 **Admin**
 - List users with pages, and filter by email, role or status. Never sends the password hash
 - Switch a user on or off. Switching off also cancels that user's refresh tokens
-- Safety rules: nobody can switch off their own account, and only a superadmin can change a superadmin
-- Audit log: records admin user switches and admin logins (success and failure). Read-only, newest first, with pages and a page size cap of 50
+- Safety rules: nobody can switch off their own account, only a superadmin can change a superadmin, and the last active superadmin can never be switched off
+- Roles and permissions: a superadmin can read the roles and permissions, change the permission list of a role (it works at once), and give a user another role
+- Audit log: records admin user switches, role changes, permission edits and admin logins (success and failure). Read-only, newest first, with pages and a page size cap of 50
 
 **Wardrobe**
 - Add a clothing item: name, category, and optional brand, color and size. Text is trimmed and has a length limit
@@ -58,7 +59,6 @@ This is an individual portfolio project, built step by step to learn the full li
 
 ### Not built yet
 
-- Permissions that can be edited at runtime (roles are a simple list for now)
 - Splitting the routes into controller, service and repository layers
 - Swagger docs
 - The React frontend, the AI service, and the whole marketplace
@@ -82,9 +82,10 @@ threadly/
     ├── index.ts          starts the server
     ├── app.ts            builds the app: middleware, routes, 404 and error handler
     ├── db.ts             connects to MongoDB
-    ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, Profile
+    ├── models/           data plans: User, RefreshTokens, AuditLog, WardrobeItem, Profile,
+    │                     Permission, Role, RolePermission
     ├── routes/           auth.ts, admin.ts, wardrobe.ts and profile.ts
-    ├── middleware/       guards (requireAuth, requireRole) and rate limiters
+    ├── middleware/       guards (requireAuth, requirePermission) and rate limiters
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
     ├── migrations/       database changes, run with migrate-mongo
     ├── scripts/          the database safety lock, index helpers, the superadmin seed
@@ -104,17 +105,74 @@ threadly/
 | POST | `/auth/change-password` | logged in | Change the password and end every session |
 | POST | `/auth/deactivate` | logged in | Switch your own account off |
 | GET | `/auth/me` | logged in | Who am I? |
-| PATCH | `/admin/users/:id/active` | admin, superadmin | Switch a user on or off |
-| GET | `/admin/users` | admin, superadmin | List users. Query: page, limit, email, role, status |
-| GET | `/admin/audit` | admin, superadmin | Read the audit log. Query: page, limit, action |
-| POST | `/wardrobe` | logged in | Add an item to my wardrobe |
-| GET | `/wardrobe` | logged in | List my items. Query: page, limit, category, status |
-| GET | `/wardrobe/:id` | the owner | See one of my items |
-| PATCH | `/wardrobe/:id` | the owner | Change name, category, brand, color or size |
-| PATCH | `/wardrobe/:id/archive` | the owner | Archive an item |
-| PATCH | `/wardrobe/:id/restore` | the owner | Put an archived item back to active |
+| PATCH | `/admin/users/:id/active` | `user:ban` | Switch a user on or off |
+| GET | `/admin/users` | `user:view` | List users. Query: page, limit, email, role, status |
+| GET | `/admin/audit` | `audit:view` | Read the audit log. Query: page, limit, action |
+| GET | `/admin/permissions` | `permission:edit` | List every permission |
+| GET | `/admin/roles` | `permission:edit` | List every role with its permissions |
+| PUT | `/admin/roles/:name/permissions` | `permission:edit` | Replace the permission list of a role. Body: `{ permissions: [names] }` |
+| PATCH | `/admin/users/:id/role` | `role:assign` | Give a user another role. Body: `{ role }` |
+| POST | `/wardrobe` | `wardrobe:manage_own` | Add an item to my wardrobe |
+| GET | `/wardrobe` | `wardrobe:manage_own` | List my items. Query: page, limit, category, status |
+| GET | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | See one of my items |
+| PATCH | `/wardrobe/:id` | `wardrobe:manage_own`, the owner | Change name, category, brand, color or size |
+| PATCH | `/wardrobe/:id/archive` | `wardrobe:manage_own`, the owner | Archive an item |
+| PATCH | `/wardrobe/:id/restore` | `wardrobe:manage_own`, the owner | Put an archived item back to active |
 | GET | `/profile/me` | logged in | Read my profile (an empty default if I have none yet) |
 | PATCH | `/profile/me` | logged in | Create or change my profile |
+
+## Roles and permissions
+
+A **permission** is one action, like `user:ban`. A **role** is a bundle of permissions.
+The guard `requirePermission("user:ban")` runs after `requireAuth` and asks:
+"does the role of this user have this permission?" The answer comes from the database
+(collections `permissions`, `roles` and `rolepermissions`), read again on every request, with no cache.
+So when a superadmin changes a role, the change works at the very next request.
+
+**Fail closed.** If the role does not exist, the row is missing, or the database lookup fails,
+the answer is always 403 `You are not allowed here`, never "yes". This also means: with an empty
+permissions table (migration 003 not run yet), everyone is refused, even a superadmin.
+
+**The permission matrix** (made by migration 003; each role has everything the role on its left has):
+
+| Permission | member | moderator | admin | superadmin |
+|---|:-:|:-:|:-:|:-:|
+| `listing:read` | ✓ | ✓ | ✓ | ✓ |
+| `wardrobe:manage_own` | ✓ | ✓ | ✓ | ✓ |
+| `listing:create` | ✓ | ✓ | ✓ | ✓ |
+| `listing:update_own` | ✓ | ✓ | ✓ | ✓ |
+| `order:create` | ✓ | ✓ | ✓ | ✓ |
+| `review:create` | ✓ | ✓ | ✓ | ✓ |
+| `report:create` | ✓ | ✓ | ✓ | ✓ |
+| `listing:hide` | | ✓ | ✓ | ✓ |
+| `listing:remove` | | ✓ | ✓ | ✓ |
+| `report:resolve` | | ✓ | ✓ | ✓ |
+| `user:view` | | | ✓ | ✓ |
+| `user:ban` | | | ✓ | ✓ |
+| `order:refund` | | | ✓ | ✓ |
+| `audit:view` | | | ✓ | ✓ |
+| `role:assign` | | | | ✓ |
+| `permission:edit` | | | | ✓ |
+| **total** | 7 | 10 | 14 | 16 |
+
+Some permissions (listings, orders, reviews, reports) are for parts that are not built yet.
+
+**One role per user (a decision).** A user keeps ONE role, saved as a role name in the `role` field
+of the user. The spec also describes a many-to-many "UserRoles" table (a user with several roles).
+That is NOT built now: one role is enough today, and it keeps the guard simple.
+
+**No "guest" role (a decision).** A guest is a visitor with no login. Public routes (like register
+and login) need no login and no permission, so a guest role would never be checked. It is not stored.
+
+**Safety rules for roles:**
+- The superadmin role can never lose `role:assign` or `permission:edit`.
+- Nobody can change their own role.
+- Only a superadmin can give or take the superadmin role, or change someone who is a superadmin.
+- The last active superadmin can never be demoted or switched off.
+- Every role change (`role.assign`) and permission edit (`permission.edit`) is written in the audit log.
+
+Known and accepted for now: if two superadmins change each other at the exact same moment,
+both requests could pass (the check counts first, then saves).
 
 ## Run it locally
 
@@ -152,6 +210,11 @@ written down once so every database gets exactly the same change. Each one has a
 |---|---|
 | `migrations/001-wardrobe-owner-index.ts` | Drops the old `ownerId_1` index on wardrobe items and makes sure `ownerId_1_createdAt_-1` exists |
 | `migrations/002-refresh-token-ttl.ts` | A TTL index on `refreshtokens.expiresAt`: MongoDB deletes a refresh token by itself once it has expired |
+| `migrations/003-roles-and-permissions.ts` | Adds the 16 permissions, the 4 roles and the 47 "role has permission" rows (see the matrix above). Its `down` removes only those |
+
+**Run migration 003 BEFORE you start the server with this version.** Until it has run, the
+permissions table is empty and every admin and wardrobe route answers 403 to everyone.
+Migration 003 runs only once: changes made later by a superadmin are not undone by a new `migrate:up`.
 
 Why the TTL index is safe: an expired token can never be swapped for a new one (the refresh route checks
 `expiresAt`), so deleting it changes nothing for real users. Reuse detection only needs tokens that are not
@@ -172,6 +235,9 @@ From the api folder (Git Bash syntax; the variables go before the command):
    CONFIRM_REAL_DB=yes npm run migrate:up
 ```
 The list of migrations already run is kept in the `changelog` collection.
+
+On the real database, in this order: `migrate:up` first (it runs 001, 002 and 003 if they are
+pending), then the superadmin seed below, then `npm run dev`.
 
 **The first superadmin.** Put `SEED_SUPERADMIN_EMAIL` and `SEED_SUPERADMIN_PASSWORD` in `api/.env`, then:
 ```
