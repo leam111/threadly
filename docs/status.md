@@ -1,6 +1,6 @@
 # Status
 
-Date: 2026-10-27
+Date: 2026-10-27 (after Step 2 was opened)
 
 The plan is now [docs/finish-plan.md](finish-plan.md) (five steps to finish Phase 1 and 2).
 The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are merged.
@@ -16,13 +16,14 @@ The older plan, `docs/structure-run.md`, is kept for history: its PR 1 to 3 are 
 | #16 | chore/env-example (extra) | 0c3de3c |
 | #17 | chore/remove-tests-ci-stripe (extra) | 2586ce1 |
 | #18 | feat/rbac-permissions | f3dbd92 |
+| #19 | refactor/layers (Step 1) | bb57c29 |
 
 ## The five steps of docs/finish-plan.md
 
 | Step | Branch | State |
 |------|--------|-------|
-| 1 | refactor/layers | pull request open, waiting for the owner's check |
-| 2 | feat/wardrobe-2f | not started |
+| 1 | refactor/layers | merged (#19) |
+| 2 | feat/wardrobe-2f | pull request open, waiting for the owner's check |
 | 3 | feat/profile-extras | not started |
 | 4 | feat/image-upload | not started |
 | 5 | feat/swagger-docs | not started |
@@ -38,7 +39,7 @@ and `docs/manual-checklist.md`, run by hand.
 
 ## Next
 
-Once Step 1 (`refactor/layers`) is merged: Step 2, `feat/wardrobe-2f`.
+Once Step 2 (`feat/wardrobe-2f`) is merged AND migration 004 has run on the real database: Step 3, `feat/profile-extras`.
 
 Message to resume:
 
@@ -46,6 +47,10 @@ Message to resume:
 
 ## Warning
 
-Migration 003 must have run on the real database before the server starts
-(`CONFIRM_REAL_DB=yes npm run migrate:up` from `api/`). An empty permissions table refuses everyone:
-every admin and wardrobe route would answer 403.
+Migrations 003 and 004 must have run on the real database before the server starts
+(from `api/`, PowerShell: `$env:CONFIRM_REAL_DB = "yes"; npm run migrate:up; Remove-Item Env:CONFIRM_REAL_DB`).
+- Without 003, the permissions table is empty and refuses everyone: every admin and wardrobe route answers 403.
+- Without 004, old items still say `active`: `status=in_closet` misses them, and archive or restore can fail with 500.
+
+Migration 004 was tried on the sandbox only (insert 2 samples, up, down, delete the samples).
+The sandbox has 004 pending again.
