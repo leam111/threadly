@@ -16,7 +16,10 @@ import { imageRepository } from "./repositories/imageRepository";
 import { makeItemImageService } from "./services/itemImageService";
 import { imageStorage } from "./storage/imageStorage";
 
-export const profileService = makeProfileService({ profiles: profileRepository });
+export const profileService = makeProfileService({
+  profiles: profileRepository,
+  storage: imageStorage,
+});
 export const itemService = makeItemService({ items: itemRepository });
 export const itemImageService = makeItemImageService({
   images: imageRepository,
