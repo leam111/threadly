@@ -87,25 +87,25 @@ You need `<superadmin-token>` (with `<superadmin-id>`), `<admin-token>` (with `<
 a step says so.
 
 **Who gets in**
-- [ ] `GET /admin/users` with `<owner-token>` (a member) → **403** "You are not allowed here".
+- [x] `GET /admin/users` with `<owner-token>` (a member) → **403** "You are not allowed here".
       The same for `GET /admin/audit`, `GET /admin/roles` and `PATCH /admin/users/<admin-id>/active`
-- [ ] `GET /admin/users` with `<admin-token>` → **200**
-- [ ] `GET /admin/roles` and `GET /admin/permissions` with `<admin-token>` → **403** "You are not allowed here"
-- [ ] `PUT /admin/roles/member/permissions` and `PATCH /admin/users/<member-id>/role` with `<admin-token>`
+- [x] `GET /admin/users` with `<admin-token>` → **200**
+- [x] `GET /admin/roles` and `GET /admin/permissions` with `<admin-token>` → **403** "You are not allowed here"
+- [x] `PUT /admin/roles/member/permissions` and `PATCH /admin/users/<member-id>/role` with `<admin-token>`
       → **403** "You are not allowed here"
-- [ ] `GET /wardrobe` with `<owner-token>` → **200** (members have `wardrobe:manage_own`)
-- [ ] `GET /profile/me` and `GET /auth/me` with `<owner-token>` → **200** (no permission needed)
-- [ ] `GET /admin/permissions` with `<superadmin-token>` → **200** with 16 items
-- [ ] `GET /admin/roles` with `<superadmin-token>` → **200** with 4 roles: member 7, moderator 10,
+- [x] `GET /wardrobe` with `<owner-token>` → **200** (members have `wardrobe:manage_own`)
+- [x] `GET /profile/me` and `GET /auth/me` with `<owner-token>` → **200** (no permission needed)
+- [x] `GET /admin/permissions` with `<superadmin-token>` → **200** with 16 items
+- [x] `GET /admin/roles` with `<superadmin-token>` → **200** with 4 roles: member 7, moderator 10,
       admin 14, superadmin 16 permissions
 
 **Edit a role (the effect is immediate)**
-- [ ] `PUT /admin/roles/admin/permissions` with `<superadmin-token>` and the admin list from
+- [x] `PUT /admin/roles/admin/permissions` with `<superadmin-token>` and the admin list from
       `GET /admin/roles` WITHOUT `user:view` → **200** "role updated". At once, with no new login,
       `GET /admin/users` with `<admin-token>` → **403** "You are not allowed here"
-- [ ] Put the full admin list back (with `user:view`) → **200** "role updated". At once
+- [x] Put the full admin list back (with `user:view`) → **200** "role updated". At once
       `GET /admin/users` with `<admin-token>` → **200**
-- [ ] `GET /admin/audit?action=permission.edit` with `<superadmin-token>` → **200**, the newest rows
+- [x] `GET /admin/audit?action=permission.edit` with `<superadmin-token>` → **200**, the newest rows
       have `details.role` = "admin", the `added` and `removed` lists, an `ip`, and no `targetId`
 - [ ] `PUT /admin/roles/admin/permissions` with `{ "permissions": ["user:view", "made:up"] }`
       → **400** "invalid input"
@@ -149,6 +149,8 @@ a step says so.
 - [ ] With TWO active superadmins: `PATCH /admin/users/<superadmin2-id>/role` with `<superadmin-token>`
       and `{ "role": "admin" }` → **200** "role updated" (one may go, because another one stays)
 
+Checked by hand by Lea on 2026-10-27 (requests 1 to 11 only).
+
 ## WARDROBE
 
 - [ ] `POST /wardrobe` (Owner) with `{ "name": "Blue shirt", "category": "hat" }`
@@ -163,7 +165,7 @@ a step says so.
 - [ ] `GET /wardrobe/<owner-item-id>` (Owner) → **200** with the item
 - [ ] `GET /wardrobe/<made-up-id>` (Owner, a valid but unknown id like `000000000000000000000000`)
       → **404** "item not found"
-- [ ] `GET /wardrobe/<owner-item-id>` (Stranger) → **404** "item not found" (the SAME answer)
+- [x] `GET /wardrobe/<owner-item-id>` (Stranger) → **404** "item not found" (the SAME answer)
 - [ ] `GET /wardrobe/abc` (Owner) → **400** "invalid id"
 - [ ] `GET /wardrobe/<owner-item-id>` with no token → **401** "Log in first"
 - [ ] `PATCH /wardrobe/<owner-item-id>/archive` (Owner) → **200**, `status` = "archived"
@@ -176,6 +178,8 @@ a step says so.
 - [ ] `PATCH /wardrobe/<owner-item-id>` (Owner) with `{ "category": "hat" }` → **400** "invalid input"
 - [ ] `PATCH /wardrobe/<owner-item-id>` (Stranger) with `{ "name": "Stolen" }`
       → **404** "item not found", and the owner still sees the old name
+
+Checked by hand by Lea on 2026-10-27 (only the ticked box: the stranger's GET).
 
 ## PROFILE
 
@@ -231,78 +235,82 @@ Then these checks, for the parts the move touched most:
 Use two Postman tabs, Owner and Stranger, as above.
 
 **New fields**
-- [ ] `POST /wardrobe` (Owner) with
+- [x] `POST /wardrobe` (Owner) with
       `{ "name": "Tote", "category": "bag", "subCategory": "tote", "colors": [" Navy ", "Red"], "pattern": "plain", "material": "leather", "season": "all", "styleTags": ["Minimal"], "condition": "like_new", "purchasePrice": 49.99, "notes": "gift" }`
       → **201**: `colors` = ["navy", "red"], `styleTags` = ["minimal"], `status` = "in_closet",
       `wearCount` = 0, and no `__v`, `isDeleted` or `deletedAt`. Keep the `_id` as `<bag-id>`
-- [ ] `POST /wardrobe` (Owner) with `{ "name": "Cap", "category": "top", "wearCount": 50, "lastWornAt": "2020-01-01", "status": "sold", "isDeleted": true, "ownerId": "<stranger-id>" }`
+- [x] `POST /wardrobe` (Owner) with `{ "name": "Cap", "category": "top", "wearCount": 50, "lastWornAt": "2020-01-01", "status": "sold", "isDeleted": true, "ownerId": "<stranger-id>" }`
       → **201** with `wearCount` 0, no `lastWornAt`, `status` "in_closet", `ownerId` = `<owner-id>`
       (every server-managed field was ignored). The answer has `colors: []` and `styleTags: []`
-- [ ] `POST /wardrobe` with `"colors": ["red", "Red"]` → **400** "invalid input" (the same color twice)
-- [ ] `POST /wardrobe` with 6 colors → **400** "invalid input". With 11 styleTags → **400** "invalid input"
-- [ ] `POST /wardrobe` with `"purchasePrice": 10.999` → **400** "invalid input". With `-1` or
+- [x] `POST /wardrobe` with `"colors": ["red", "Red"]` → **400** "invalid input" (the same color twice)
+- [x] `POST /wardrobe` with 6 colors → **400** "invalid input". With 11 styleTags → **400** "invalid input"
+- [x] `POST /wardrobe` with `"purchasePrice": 10.999` → **400** "invalid input". With `-1` or
       `1000000.01` → **400** "invalid input". With `0.1` → **201**
-- [ ] `POST /wardrobe` with `"season": "monsoon"` or `"condition": "broken"` → **400** "invalid input"
-- [ ] `POST /wardrobe` with `"notes"` of 501 characters → **400** "invalid input"
+- [x] `POST /wardrobe` with `"season": "monsoon"` or `"condition": "broken"` → **400** "invalid input"
+- [x] `POST /wardrobe` with `"notes"` of 501 characters → **400** "invalid input"
 
 **Edit and clear**
-- [ ] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "season": "", "colors": [], "purchasePrice": null, "notes": "" }`
+- [x] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "season": "", "colors": [], "purchasePrice": null, "notes": "" }`
       → **200**: no `season`, no `purchasePrice`, no `notes`, and `colors: []`
-- [ ] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "wearCount": 5, "status": "listed" }` → **400** "nothing to change"
+- [x] `PATCH /wardrobe/<bag-id>` (Owner) with `{ "wearCount": 5, "status": "listed" }` → **400** "nothing to change"
       (both keys are dropped, so nothing is left)
 
 **Status, archive and restore**
-- [ ] `PATCH /wardrobe/<bag-id>/archive` twice → **200** both times, `status` "archived"
-- [ ] `PATCH /wardrobe/<bag-id>/restore` twice → **200** both times, `status` "in_closet"
-- [ ] `GET /wardrobe?status=active` → **400** "invalid query" (the old name is gone).
+- [x] `PATCH /wardrobe/<bag-id>/archive` twice → **200** both times, `status` "archived"
+- [x] `PATCH /wardrobe/<bag-id>/restore` twice → **200** both times, `status` "in_closet"
+- [x] `GET /wardrobe?status=active` → **400** "invalid query" (the old name is gone).
       `GET /wardrobe?status=in_closet` → **200**
 
 **Wear**
-- [ ] `POST /wardrobe/<bag-id>/wear` (Owner) → **200**, `wearCount` 1 and a `lastWornAt` of now.
+- [x] `POST /wardrobe/<bag-id>/wear` (Owner) → **200**, `wearCount` 1 and a `lastWornAt` of now.
       Again → **200**, `wearCount` 2
-- [ ] `POST /wardrobe/abc/wear` (Owner) → **400** "invalid id"
+- [x] `POST /wardrobe/abc/wear` (Owner) → **400** "invalid id"
 
 **A stranger changes nothing (404, and updatedAt stays)**
-- [ ] Note `updatedAt` and `wearCount` of `<bag-id>` (Owner, `GET /wardrobe/<bag-id>`).
+- [x] Note `updatedAt` and `wearCount` of `<bag-id>` (Owner, `GET /wardrobe/<bag-id>`).
       As the Stranger: `PATCH /wardrobe/<bag-id>` with `{ "name": "Stolen" }` → **404** "item not found";
       `POST /wardrobe/<bag-id>/wear` → **404** "item not found";
       `DELETE /wardrobe/<bag-id>` → **404** "item not found".
       Then as the Owner, `GET /wardrobe/<bag-id>` → **200** with the same name, `wearCount` and `updatedAt`
 
 **Filters** (create a few items first; the Cap above was never worn)
-- [ ] `GET /wardrobe?category=bag` → only bags. `GET /wardrobe?color=NAVY` → items whose `colors` has "navy"
-- [ ] `GET /wardrobe?season=all&styleTag=minimal` → only items with both
-- [ ] Make one item with `"season": "summer"` and one with `"season": "winter"` (the Tote has "all").
+- [x] `GET /wardrobe?category=bag` → only bags. `GET /wardrobe?color=NAVY` → items whose `colors` has "navy"
+- [x] `GET /wardrobe?season=all&styleTag=minimal` → only items with both
+- [x] Make one item with `"season": "summer"` and one with `"season": "winter"` (the Tote has "all").
       `GET /wardrobe?season=summer` → the summer item AND the Tote ("all" matches every season), not the
       winter item. `GET /wardrobe?season=all` → only items marked "all"
-- [ ] `GET /wardrobe?notWornDays=30` → the Cap is in the list (never worn), the Tote is not (worn today)
-- [ ] `GET /wardrobe?notWornDays=45` → **400** "invalid query". `GET /wardrobe?season=monsoon` → **400** "invalid query"
-- [ ] `GET /wardrobe?limit=500` → **200** with `limit` 50
-- [ ] `GET /wardrobe?ownerId=<owner-id>` (Stranger) → **200** with only the Stranger's items
+- [x] `GET /wardrobe?notWornDays=30` → the Cap is in the list (never worn), the Tote is not (worn today)
+- [x] `GET /wardrobe?notWornDays=45` → **400** "invalid query". `GET /wardrobe?season=monsoon` → **400** "invalid query"
+- [x] `GET /wardrobe?limit=500` → **200** with `limit` 50
+- [x] `GET /wardrobe?ownerId=<owner-id>` (Stranger) → **200** with only the Stranger's items
 
 **Soft delete**
-- [ ] `DELETE /wardrobe/abc` (Owner) → **400** "invalid id"
-- [ ] `DELETE /wardrobe/<bag-id>` (Owner) → **200** "item deleted"
-- [ ] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
+- [x] `DELETE /wardrobe/abc` (Owner) → **400** "invalid id"
+- [x] `DELETE /wardrobe/<bag-id>` (Owner) → **200** "item deleted"
+- [x] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
       `PATCH /wardrobe/<bag-id>/archive`, `PATCH /wardrobe/<bag-id>/restore`, `POST /wardrobe/<bag-id>/wear`
       and `DELETE /wardrobe/<bag-id>` → all **404** "item not found"
-- [ ] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
-- [ ] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
+- [x] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
+- [x] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
       and a `deletedAt`
+
+Checked by hand by Lea on 2026-10-27.
 
 ## STEP 3: PROFILE EXTRAS
 
 No migration is needed. Use the Owner tab.
 
-- [ ] `PATCH /profile/me` with `{ "country": "  France ", "favoriteColors": [" Sage Green ", "NAVY"] }`
+- [x] `PATCH /profile/me` with `{ "country": "  France ", "favoriteColors": [" Sage Green ", "NAVY"] }`
       → **200** with `country` "France" and `favoriteColors` ["sage green", "navy"]. `GET /profile/me` shows the same
-- [ ] `PATCH /profile/me` with `{ "favoriteColors": ["red", "Red"] }` → **400** "invalid input" (the same color twice)
-- [ ] `PATCH /profile/me` with 11 favorite colors → **400** "invalid input"
-- [ ] `PATCH /profile/me` with `{ "favoriteColors": [" "] }` → **400** "invalid input" (an empty word)
-- [ ] `PATCH /profile/me` with a `country` of 61 characters → **400** "invalid input"
-- [ ] `PATCH /profile/me` with `{ "country": "", "favoriteColors": [] }` → **200**: no `country` in the answer,
+- [x] `PATCH /profile/me` with `{ "favoriteColors": ["red", "Red"] }` → **400** "invalid input" (the same color twice)
+- [x] `PATCH /profile/me` with 11 favorite colors → **400** "invalid input"
+- [x] `PATCH /profile/me` with `{ "favoriteColors": [" "] }` → **400** "invalid input" (an empty word)
+- [x] `PATCH /profile/me` with a `country` of 61 characters → **400** "invalid input"
+- [x] `PATCH /profile/me` with `{ "country": "", "favoriteColors": [] }` → **200**: no `country` in the answer,
       and `favoriteColors: []`. The other fields (like `city`) did not change
-- [ ] `GET /profile/me` (Stranger, never set a color) → **200** with `favoriteColors: []` and no `country`
+- [x] `GET /profile/me` (Stranger, never set a color) → **200** with `favoriteColors: []` and no `country`
+
+Checked by hand by Lea on 2026-10-27.
 
 ## STEP 4: PHOTOS AND THE AVATAR (image storage)
 
@@ -326,94 +334,96 @@ No migration is needed. Use the Owner tab.
 5. Do NOT add a `Content-Type` header yourself: Postman sets it (with the boundary) for form-data.
 
 **Upload: every message**
-- [ ] No token → **401** "Log in first"
-- [ ] Body **none** (no file at all) → **400** "image is required"
-- [ ] The file under the key `photo` instead of `image` → **400** "image is required"
-- [ ] Two rows with the key `image`, each with a file → **400** "only one image at a time"
-- [ ] `fake.jpg` (a text file with a .jpg name) → **415** "only jpeg, png or webp images"
-- [ ] The GIF → **415** "only jpeg, png or webp images"
-- [ ] The photo bigger than 5 MB → **413** "image too large (max 5 MB)"
-- [ ] `alt` of 151 characters → **400** "invalid input"
-- [ ] URL `/wardrobe/abc/images` with the JPEG → **400** "invalid id"
-- [ ] URL `/wardrobe/000000000000000000000000/images` → **404** "item not found"
-- [ ] `<owner-item-id>` with the **Stranger** token → **404** "item not found" (the SAME answer)
-- [ ] The JPEG with `alt` "front view" (Owner) → **201** with `_id`, `itemId`, `kind` "original",
+- [x] No token → **401** "Log in first"
+- [x] Body **none** (no file at all) → **400** "image is required"
+- [x] The file under the key `photo` instead of `image` → **400** "image is required"
+- [x] Two rows with the key `image`, each with a file → **400** "only one image at a time"
+- [x] `fake.jpg` (a text file with a .jpg name) → **415** "only jpeg, png or webp images"
+- [x] The GIF → **415** "only jpeg, png or webp images"
+- [x] The photo bigger than 5 MB → **413** "image too large (max 5 MB)"
+- [x] `alt` of 151 characters → **400** "invalid input"
+- [x] URL `/wardrobe/abc/images` with the JPEG → **400** "invalid id"
+- [x] URL `/wardrobe/000000000000000000000000/images` → **404** "item not found"
+- [x] `<owner-item-id>` with the **Stranger** token → **404** "item not found" (the SAME answer)
+- [x] The JPEG with `alt` "front view" (Owner) → **201** with `_id`, `itemId`, `kind` "original",
       `alt`, `width`, `height`, `bytes`, `mimeType` "image/jpeg" and a `url`. There is NO
       `storagePath` and no `__v`. Keep the `_id` as `<image-1>`
-- [ ] Copy the `url` into a browser tab → the photo opens. Remove everything from `?` to the end of the
+- [x] Copy the `url` into a browser tab → the photo opens. Remove everything from `?` to the end of the
       link and open it again → it does NOT open (an error): the bucket is private
-- [ ] In the Supabase dashboard (Storage > your bucket) the file is at
+- [x] In the Supabase dashboard (Storage > your bucket) the file is at
       `items/<owner-id>/<owner-item-id>/<random id>.jpg`
-- [ ] The PNG renamed to `photo.jpg` → **201** with `mimeType` "image/png", and in the dashboard the
+- [x] The PNG renamed to `photo.jpg` → **201** with `mimeType` "image/png", and in the dashboard the
       new file ends with `.png` (the real type wins, not the name)
-- [ ] The WebP with an extra text row `kind` = `cutout` → **201** with `kind` "original" (members cannot
+- [x] The WebP with an extra text row `kind` = `cutout` → **201** with `kind` "original" (members cannot
       choose the kind)
-- [ ] Upload until the item has 5 photos, then one more → **409** "this item already has 5 images"
+- [x] Upload until the item has 5 photos, then one more → **409** "this item already has 5 images"
 
 **List, cover and alt**
-- [ ] `GET /wardrobe/<owner-item-id>/images` (Owner) → **200** `{ "items": [...] }`, newest first, each
+- [x] `GET /wardrobe/<owner-item-id>/images` (Owner) → **200** `{ "items": [...] }`, newest first, each
       with a `url` and no `storagePath`
-- [ ] The same with the Stranger token → **404** "item not found"
-- [ ] `GET /wardrobe` (Owner) → the item with photos has a `coverUrl` (it opens the OLDEST photo, the
+- [x] The same with the Stranger token → **404** "item not found"
+- [x] `GET /wardrobe` (Owner) → the item with photos has a `coverUrl` (it opens the OLDEST photo, the
       first JPEG). An item with no photo has no `coverUrl`. `GET /wardrobe/<owner-item-id>` has it too
-- [ ] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with raw JSON `{ "alt": "back view" }` → **200**
+- [x] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with raw JSON `{ "alt": "back view" }` → **200**
       with `alt` "back view" and a fresh `url`
-- [ ] The same with `{ "alt": "" }` → **200** with no `alt`
-- [ ] The same with `{}` → **400** "nothing to change"
-- [ ] The same with an `alt` of 151 characters → **400** "invalid input"
-- [ ] `PATCH /wardrobe/<owner-item-id>/images/abc` with `{ "alt": "x" }` → **400** "invalid id"
-- [ ] `PATCH /wardrobe/<owner-item-id>/images/000000000000000000000000` with `{ "alt": "x" }`
+- [x] The same with `{ "alt": "" }` → **200** with no `alt`
+- [x] The same with `{}` → **400** "nothing to change"
+- [x] The same with an `alt` of 151 characters → **400** "invalid input"
+- [x] `PATCH /wardrobe/<owner-item-id>/images/abc` with `{ "alt": "x" }` → **400** "invalid id"
+- [x] `PATCH /wardrobe/<owner-item-id>/images/000000000000000000000000` with `{ "alt": "x" }`
       → **404** "image not found". The same with the `_id` of a photo of ANOTHER item of yours
       → **404** "image not found"
-- [ ] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token and `{ "alt": "x" }`
+- [x] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token and `{ "alt": "x" }`
       → **404** "item not found", and the Owner still sees the old alt
 
 **Delete a photo**
-- [ ] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token → **404** "item not found"
-- [ ] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` (Owner) → **200** "image deleted". In the
+- [x] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token → **404** "item not found"
+- [x] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` (Owner) → **200** "image deleted". In the
       dashboard the file is gone. `GET /wardrobe/<owner-item-id>` → the `coverUrl` now opens the next
       oldest photo
-- [ ] The same DELETE again → **404** "image not found"
-- [ ] `DELETE /wardrobe/abc/images/<image-1>` → **400** "invalid id"
-- [ ] After a soft delete of the item (`DELETE /wardrobe/<owner-item-id>`),
+- [x] The same DELETE again → **404** "image not found"
+- [x] `DELETE /wardrobe/abc/images/<image-1>` → **400** "invalid id"
+- [x] After a soft delete of the item (`DELETE /wardrobe/<owner-item-id>`),
       `GET /wardrobe/<owner-item-id>/images` → **404** "item not found"
 
 **Avatar** (the same Postman steps, URL `POST http://localhost:3000/profile/me/avatar`, key `image`)
-- [ ] No token → **401** "Log in first"
-- [ ] No file → **400** "image is required". The GIF → **415** "only jpeg, png or webp images".
+- [x] No token → **401** "Log in first"
+- [x] No file → **400** "image is required". The GIF → **415** "only jpeg, png or webp images".
       The big photo → **413** "image too large (max 5 MB)"
-- [ ] The JPEG → **200** with the whole profile and an `avatarUrl` (it opens the photo). There is no
+- [x] The JPEG → **200** with the whole profile and an `avatarUrl` (it opens the photo). There is no
       `avatarStoragePath`. In the dashboard: one file in `avatars/<owner-id>/`
-- [ ] The PNG → **200** with a new `avatarUrl`. In the dashboard: still ONE file in
+- [x] The PNG → **200** with a new `avatarUrl`. In the dashboard: still ONE file in
       `avatars/<owner-id>/` (the old one was removed after the new one was saved), ending with `.png`
-- [ ] `GET /profile/me`, and `PATCH /profile/me` with `{ "city": "Lyon" }` → **200**, both with `avatarUrl`
-- [ ] `GET /profile/me` with the Stranger token → the Stranger's own profile, with no `avatarUrl`
-- [ ] `DELETE /profile/me/avatar` → **200** "avatar deleted"; the file is gone in the dashboard;
+- [x] `GET /profile/me`, and `PATCH /profile/me` with `{ "city": "Lyon" }` → **200**, both with `avatarUrl`
+- [x] `GET /profile/me` with the Stranger token → the Stranger's own profile, with no `avatarUrl`
+- [x] `DELETE /profile/me/avatar` → **200** "avatar deleted"; the file is gone in the dashboard;
       `GET /profile/me` has no `avatarUrl`
-- [ ] `DELETE /profile/me/avatar` again → **404** "avatar not found"
+- [x] `DELETE /profile/me/avatar` again → **404** "avatar not found"
 
 **Image storage not set up (503)**
-- [ ] Stop the server. In `api/.env`, put a `#` in front of the `SUPABASE_BUCKET` line. Start the
+- [x] Stop the server. In `api/.env`, put a `#` in front of the `SUPABASE_BUCKET` line. Start the
       server → it prints `image storage is not set up, missing: SUPABASE_BUCKET` and still starts
-- [ ] Upload a JPEG to an item → **503** "image storage is not set up". `POST /profile/me/avatar`
+- [x] Upload a JPEG to an item → **503** "image storage is not set up". `POST /profile/me/avatar`
       → **503** (same message). `DELETE` of an existing photo → **503**, and the photo is still in the list
-- [ ] `GET /wardrobe` and `GET /wardrobe/<id>/images` → **200**, but with no `coverUrl` or `url`
+- [x] `GET /wardrobe` and `GET /wardrobe/<id>/images` → **200**, but with no `coverUrl` or `url`
       (no link can be made, and the answer still works)
-- [ ] Remove the `#` again and restart the server
+- [x] Remove the `#` again and restart the server
 
 **Image storage failed (502)**
-- [ ] Stop the server. Change `SUPABASE_BUCKET` in `api/.env` to a name that does not exist (like
+- [x] Stop the server. Change `SUPABASE_BUCKET` in `api/.env` to a name that does not exist (like
       `no-such-bucket`), and start the server. Upload a JPEG → **502** "image storage failed", and
       `GET /wardrobe/<id>/images` shows NO new photo (nothing was saved in the database).
       `DELETE` of an existing photo → **502** "image storage failed", and the photo is still in the list.
       Put the right bucket name back and restart: the same DELETE now works (**200**)
-- [ ] Note about a paused project: a free Supabase project pauses after about a week without activity.
+- [x] Note about a paused project: a free Supabase project pauses after about a week without activity.
       Then uploads and deletes answer **502** "image storage failed", and answers have no links. Restore
       the project in the Supabase dashboard, wait a few minutes, and try again
 
 **Nothing secret in the log**
-- [ ] Look at the server window after all the tests above: it never shows the service key or a link
+- [x] Look at the server window after all the tests above: it never shows the service key or a link
       with `token=` in it
+
+Checked by hand by Lea on 2026-10-27.
 
 ## STEP 5: SWAGGER (the API docs)
 
@@ -422,7 +432,7 @@ No migration is needed. Use the Owner tab.
 - "Try it out" sends REAL requests: use the throw-away Owner account from above.
 
 **The page**
-- [ ] Open `http://localhost:3000/docs` in the browser → the Swagger page shows "Threadly API" with
+- [x] Open `http://localhost:3000/docs` in the browser → the Swagger page shows "Threadly API" with
       five groups: auth, profile, admin, wardrobe, images. Nothing is red or broken
 - [ ] Open `http://localhost:3000/docs` with a slash at the end (`/docs/`) → the same page
 - [ ] Press F12, tab **Console**, reload the page → no red error about "Content Security Policy"
@@ -434,13 +444,13 @@ No migration is needed. Use the Owner tab.
 - [ ] `GET /auth/me` → **Try it out** → **Execute** with no token → **401** "Log in first"
 - [ ] `POST /auth/login` → **Try it out**, body with the Owner email and password → **Execute**
       → **200** with `accessToken`. Click **Authorize**, paste the token in **bearerAuth**, **Authorize**, **Close**
-- [ ] `GET /auth/me` → **Execute** → **200** with the Owner's id, email and role. The "Curl" box shows
+- [x] `GET /auth/me` → **Execute** → **200** with the Owner's id, email and role. The "Curl" box shows
       `Authorization: Bearer ...`
 - [ ] `POST /auth/refresh` → **Execute** (nothing to fill in) → **200** with a new `accessToken`
       (the browser sent the cookie from the login by itself)
 - [ ] `GET /admin/users` with the Owner (a member) token → **403** "You are not allowed here".
       The description of this route says "Permission: `user:view`"
-- [ ] `GET /wardrobe` → **Execute** → **200** with the Owner's items
+- [x] `GET /wardrobe` → **Execute** → **200** with the Owner's items
 - [ ] `POST /wardrobe/{id}/images` → **Try it out**: there is a **Choose File** button for `image`.
       Pick the JPEG, put `<owner-item-id>` in `id` → **201** with a `url` (only if image storage is set up;
       without it → **503** "image storage is not set up")
@@ -457,3 +467,5 @@ No migration is needed. Use the Owner tab.
       Open `http://localhost:3000/docs` → **404** "route not found", and `/docs.json` → **404** "route not found".
       Stop the server, then `Remove-Item Env:NODE_ENV` and start it again as usual.
       (In production the refresh cookie needs https, so do not try to log in during this check)
+
+Checked by hand by Lea on 2026-10-27 (only the ticked boxes: /docs, GET /auth/me with a token, GET /wardrobe).
