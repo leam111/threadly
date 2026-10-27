@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
-import { WardrobeItem } from "../models/WardrobeItem";
+import { itemRepository } from "../repositories/itemRepository";
+import { isValidId } from "../utils/ids";
 
 // This file answers ONE question: "may this person do this to this item?"
 // Every wardrobe route asks here, so the rules live in one place.
@@ -46,10 +46,11 @@ export function canRestoreItem(actor: Actor, item: OwnedItem) {
 // the id is checked here, and only here: validId tells the caller if it was valid,
 // item is null when there is no such item or when it is someone else's
 export async function lookupItemFor(actor: Actor, id: string) {
-  if (!mongoose.isValidObjectId(id)) {
+  if (!isValidId(id)) {
     return { validId: false, item: null } as const;
   }
-  const item = await WardrobeItem.findOne({ _id: id, ownerId: actor.id });
+  // the query itself keeps only the caller's own items (see repositories/itemRepository.ts)
+  const item = await itemRepository.findOwned(actor.id, id);
   return { validId: true, item } as const;
 }
 

@@ -3,5 +3,8 @@
 // Controllers take their service from this file.
 import { profileRepository } from "./repositories/profileRepository";
 import { makeProfileService } from "./services/profileService";
+import { itemRepository } from "./repositories/itemRepository";
+import { makeItemService } from "./services/itemService";
 
 export const profileService = makeProfileService({ profiles: profileRepository });
+export const itemService = makeItemService({ items: itemRepository });
