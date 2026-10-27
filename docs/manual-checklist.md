@@ -303,3 +303,114 @@ No migration is needed. Use the Owner tab.
 - [ ] `PATCH /profile/me` with `{ "country": "", "favoriteColors": [] }` → **200**: no `country` in the answer,
       and `favoriteColors: []`. The other fields (like `city`) did not change
 - [ ] `GET /profile/me` (Stranger, never set a color) → **200** with `favoriteColors: []` and no `country`
+
+## STEP 4: PHOTOS AND THE AVATAR (image storage)
+
+**Before you start**
+- Run migration 005 on the real database (see the README, "Migrations"). Put the three `SUPABASE_`
+  values in `api/.env` (see the README, "Image storage"), then start the server. It must NOT print
+  `image storage is not set up`.
+- Have these files ready: a JPEG, a PNG and a WebP (each under 5 MB), a photo bigger than 5 MB,
+  a GIF, and a text file renamed to `fake.jpg`.
+- A signed link (`url`, `coverUrl`, `avatarUrl`) works like a password for 1 hour: never paste one into
+  this file, an issue or a chat.
+- Use the Owner and Stranger tabs as above, and an item of the Owner: `<owner-item-id>`.
+
+**How to send a file in Postman**
+1. Method `POST`, URL `http://localhost:3000/wardrobe/<owner-item-id>/images`, and the Owner token in
+   Authorization > Bearer Token.
+2. Open **Body**, choose **form-data**.
+3. In the first row, type the key `image`. Move the mouse over the key cell: a small menu shows
+   **Text**. Change it to **File**. Then click **Select Files** in the value cell and pick the photo.
+4. Optional second row: key `alt` (type Text), value like `front view`.
+5. Do NOT add a `Content-Type` header yourself: Postman sets it (with the boundary) for form-data.
+
+**Upload: every message**
+- [ ] No token → **401** "Log in first"
+- [ ] Body **none** (no file at all) → **400** "image is required"
+- [ ] The file under the key `photo` instead of `image` → **400** "image is required"
+- [ ] Two rows with the key `image`, each with a file → **400** "only one image at a time"
+- [ ] `fake.jpg` (a text file with a .jpg name) → **415** "only jpeg, png or webp images"
+- [ ] The GIF → **415** "only jpeg, png or webp images"
+- [ ] The photo bigger than 5 MB → **413** "image too large (max 5 MB)"
+- [ ] `alt` of 151 characters → **400** "invalid input"
+- [ ] URL `/wardrobe/abc/images` with the JPEG → **400** "invalid id"
+- [ ] URL `/wardrobe/000000000000000000000000/images` → **404** "item not found"
+- [ ] `<owner-item-id>` with the **Stranger** token → **404** "item not found" (the SAME answer)
+- [ ] The JPEG with `alt` "front view" (Owner) → **201** with `_id`, `itemId`, `kind` "original",
+      `alt`, `width`, `height`, `bytes`, `mimeType` "image/jpeg" and a `url`. There is NO
+      `storagePath` and no `__v`. Keep the `_id` as `<image-1>`
+- [ ] Copy the `url` into a browser tab → the photo opens. Remove everything from `?` to the end of the
+      link and open it again → it does NOT open (an error): the bucket is private
+- [ ] In the Supabase dashboard (Storage > your bucket) the file is at
+      `items/<owner-id>/<owner-item-id>/<random id>.jpg`
+- [ ] The PNG renamed to `photo.jpg` → **201** with `mimeType` "image/png", and in the dashboard the
+      new file ends with `.png` (the real type wins, not the name)
+- [ ] The WebP with an extra text row `kind` = `cutout` → **201** with `kind` "original" (members cannot
+      choose the kind)
+- [ ] Upload until the item has 5 photos, then one more → **409** "this item already has 5 images"
+
+**List, cover and alt**
+- [ ] `GET /wardrobe/<owner-item-id>/images` (Owner) → **200** `{ "items": [...] }`, newest first, each
+      with a `url` and no `storagePath`
+- [ ] The same with the Stranger token → **404** "item not found"
+- [ ] `GET /wardrobe` (Owner) → the item with photos has a `coverUrl` (it opens the OLDEST photo, the
+      first JPEG). An item with no photo has no `coverUrl`. `GET /wardrobe/<owner-item-id>` has it too
+- [ ] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with raw JSON `{ "alt": "back view" }` → **200**
+      with `alt` "back view" and a fresh `url`
+- [ ] The same with `{ "alt": "" }` → **200** with no `alt`
+- [ ] The same with `{}` → **400** "nothing to change"
+- [ ] The same with an `alt` of 151 characters → **400** "invalid input"
+- [ ] `PATCH /wardrobe/<owner-item-id>/images/abc` with `{ "alt": "x" }` → **400** "invalid id"
+- [ ] `PATCH /wardrobe/<owner-item-id>/images/000000000000000000000000` with `{ "alt": "x" }`
+      → **404** "image not found". The same with the `_id` of a photo of ANOTHER item of yours
+      → **404** "image not found"
+- [ ] `PATCH /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token and `{ "alt": "x" }`
+      → **404** "item not found", and the Owner still sees the old alt
+
+**Delete a photo**
+- [ ] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` with the Stranger token → **404** "item not found"
+- [ ] `DELETE /wardrobe/<owner-item-id>/images/<image-1>` (Owner) → **200** "image deleted". In the
+      dashboard the file is gone. `GET /wardrobe/<owner-item-id>` → the `coverUrl` now opens the next
+      oldest photo
+- [ ] The same DELETE again → **404** "image not found"
+- [ ] `DELETE /wardrobe/abc/images/<image-1>` → **400** "invalid id"
+- [ ] After a soft delete of the item (`DELETE /wardrobe/<owner-item-id>`),
+      `GET /wardrobe/<owner-item-id>/images` → **404** "item not found"
+
+**Avatar** (the same Postman steps, URL `POST http://localhost:3000/profile/me/avatar`, key `image`)
+- [ ] No token → **401** "Log in first"
+- [ ] No file → **400** "image is required". The GIF → **415** "only jpeg, png or webp images".
+      The big photo → **413** "image too large (max 5 MB)"
+- [ ] The JPEG → **200** with the whole profile and an `avatarUrl` (it opens the photo). There is no
+      `avatarStoragePath`. In the dashboard: one file in `avatars/<owner-id>/`
+- [ ] The PNG → **200** with a new `avatarUrl`. In the dashboard: still ONE file in
+      `avatars/<owner-id>/` (the old one was removed after the new one was saved), ending with `.png`
+- [ ] `GET /profile/me`, and `PATCH /profile/me` with `{ "city": "Lyon" }` → **200**, both with `avatarUrl`
+- [ ] `GET /profile/me` with the Stranger token → the Stranger's own profile, with no `avatarUrl`
+- [ ] `DELETE /profile/me/avatar` → **200** "avatar deleted"; the file is gone in the dashboard;
+      `GET /profile/me` has no `avatarUrl`
+- [ ] `DELETE /profile/me/avatar` again → **404** "avatar not found"
+
+**Image storage not set up (503)**
+- [ ] Stop the server. In `api/.env`, put a `#` in front of the `SUPABASE_BUCKET` line. Start the
+      server → it prints `image storage is not set up, missing: SUPABASE_BUCKET` and still starts
+- [ ] Upload a JPEG to an item → **503** "image storage is not set up". `POST /profile/me/avatar`
+      → **503** (same message). `DELETE` of an existing photo → **503**, and the photo is still in the list
+- [ ] `GET /wardrobe` and `GET /wardrobe/<id>/images` → **200**, but with no `coverUrl` or `url`
+      (no link can be made, and the answer still works)
+- [ ] Remove the `#` again and restart the server
+
+**Image storage failed (502)**
+- [ ] Stop the server. Change `SUPABASE_BUCKET` in `api/.env` to a name that does not exist (like
+      `no-such-bucket`), and start the server. Upload a JPEG → **502** "image storage failed", and
+      `GET /wardrobe/<id>/images` shows NO new photo (nothing was saved in the database).
+      `DELETE` of an existing photo → **502** "image storage failed", and the photo is still in the list.
+      Put the right bucket name back and restart: the same DELETE now works (**200**)
+- [ ] Note about a paused project: a free Supabase project pauses after about a week without activity.
+      Then uploads and deletes answer **502** "image storage failed", and answers have no links. Restore
+      the project in the Supabase dashboard, wait a few minutes, and try again
+
+**Nothing secret in the log**
+- [ ] Look at the server window after all the tests above: it never shows the service key or a link
+      with `token=` in it
