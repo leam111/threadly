@@ -414,3 +414,46 @@ No migration is needed. Use the Owner tab.
 **Nothing secret in the log**
 - [ ] Look at the server window after all the tests above: it never shows the service key or a link
       with `token=` in it
+
+## STEP 5: SWAGGER (the API docs)
+
+**Before you start**
+- Start the server from `api/` with `npm run dev` (do NOT set `NODE_ENV=production`).
+- "Try it out" sends REAL requests: use the throw-away Owner account from above.
+
+**The page**
+- [ ] Open `http://localhost:3000/docs` in the browser → the Swagger page shows "Threadly API" with
+      five groups: auth, profile, admin, wardrobe, images. Nothing is red or broken
+- [ ] Open `http://localhost:3000/docs` with a slash at the end (`/docs/`) → the same page
+- [ ] Press F12, tab **Console**, reload the page → no red error about "Content Security Policy"
+- [ ] Open `http://localhost:3000/docs.json` → **200** with the raw file (JSON, starting with `"openapi": "3.0.3"`)
+- [ ] Count the routes on the page: 31 in total (8 auth, 4 profile, 7 admin, 8 wardrobe, 4 images).
+      Every row of the README "Endpoints" table is there
+
+**Try a route with a token**
+- [ ] `GET /auth/me` → **Try it out** → **Execute** with no token → **401** "Log in first"
+- [ ] `POST /auth/login` → **Try it out**, body with the Owner email and password → **Execute**
+      → **200** with `accessToken`. Click **Authorize**, paste the token in **bearerAuth**, **Authorize**, **Close**
+- [ ] `GET /auth/me` → **Execute** → **200** with the Owner's id, email and role. The "Curl" box shows
+      `Authorization: Bearer ...`
+- [ ] `POST /auth/refresh` → **Execute** (nothing to fill in) → **200** with a new `accessToken`
+      (the browser sent the cookie from the login by itself)
+- [ ] `GET /admin/users` with the Owner (a member) token → **403** "You are not allowed here".
+      The description of this route says "Permission: `user:view`"
+- [ ] `GET /wardrobe` → **Execute** → **200** with the Owner's items
+- [ ] `POST /wardrobe/{id}/images` → **Try it out**: there is a **Choose File** button for `image`.
+      Pick the JPEG, put `<owner-item-id>` in `id` → **201** with a `url` (only if image storage is set up;
+      without it → **503** "image storage is not set up")
+- [ ] Click **Authorize**, then **Logout** (in bearerAuth). `GET /auth/me` → **401** "Log in first"
+
+**The security headers**
+- [ ] In Postman, `GET http://localhost:3000/docs/` → look at the **Headers** of the answer:
+      `Content-Security-Policy` does NOT contain `upgrade-insecure-requests`
+- [ ] `GET http://localhost:3000/auth/me` (any token or none) → its `Content-Security-Policy` DOES
+      contain `upgrade-insecure-requests` (the normal, strict headers)
+
+**Not in production**
+- [ ] Stop the server. In PowerShell, from `api/`: `$env:NODE_ENV = "production"; npm run dev`.
+      Open `http://localhost:3000/docs` → **404** "route not found", and `/docs.json` → **404** "route not found".
+      Stop the server, then `Remove-Item Env:NODE_ENV` and start it again as usual.
+      (In production the refresh cookie needs https, so do not try to log in during this check)
