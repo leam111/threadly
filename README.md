@@ -52,11 +52,16 @@ This is an individual portfolio project, built step by step to learn the full li
 - The answer always has `colors` and `styleTags` as lists (empty when there are none), and never `__v`, `isDeleted` or `deletedAt`
 - Status: `in_closet` (the normal state), `archived`, and later `listed` and `sold` for the marketplace.
   Archive sets `archived`, restore sets `in_closet`. Both can be repeated safely (200 again)
+- Note on `color`: the old free-text `color` field stays next to the `colors` list until the AI tagging
+  phase. The `color` filter searches the `colors` list only
+- Note on restore: restore sets `in_closet` from ANY status, even `listed` or `sold`. This must be
+  revisited when the marketplace exists (a listed or sold item should probably not go back to the closet)
 - "I wore it": `POST /wardrobe/:id/wear` adds 1 to `wearCount` and sets `lastWornAt` to now
 - Delete is a SOFT delete: the item stays in the database, marked `isDeleted`, but every route then acts
   as if it was gone (404 `item not found`) and lists never show it. Nothing is ever really deleted
 - List your items, newest first, with pages (page size cap of 50). Filters, freely combined: status, category,
-  color, season, styleTag, and notWornDays (30, 60 or 90: last worn longer ago than that, or never worn)
+  color, season (an "all" season item matches every season), styleTag, and notWornDays (30, 60 or 90:
+  last worn longer ago than that, or never worn)
 - The owner always comes from the token, never from the body or the address. The server-managed fields
   (`ownerId`, `status`, `wearCount`, `lastWornAt`, `isDeleted`) sent in a body are ignored
 - An item policy (`policies/itemPolicy.ts`) decides in one place who may see, edit, archive, restore, delete or wear an item. For now, only the owner
