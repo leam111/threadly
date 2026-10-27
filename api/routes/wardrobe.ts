@@ -9,6 +9,7 @@ import {
   archiveItem,
   restoreItem,
   editItem,
+  deleteItem,
 } from "../controllers/itemController";
 
 const router = Router();
@@ -22,5 +23,6 @@ router.get("/:id", requireAuth, canManageWardrobe, getItem);
 router.patch("/:id/archive", writeLimiter, requireAuth, canManageWardrobe, archiveItem);
 router.patch("/:id/restore", writeLimiter, requireAuth, canManageWardrobe, restoreItem);
 router.patch("/:id", writeLimiter, requireAuth, canManageWardrobe, editItem);
+router.delete("/:id", writeLimiter, requireAuth, canManageWardrobe, deleteItem);
 
 export default router;

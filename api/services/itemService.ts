@@ -5,6 +5,7 @@ import {
   canEditItem,
   canArchiveItem,
   canRestoreItem,
+  canDeleteItem,
   lookupItemFor,
 } from "../policies/itemPolicy";
 import { isEmptyValue } from "../dtos/itemDto";
@@ -64,6 +65,13 @@ export function makeItemService({ items }: { items: ItemRepository }) {
     async restore(actor: Actor, id: string) {
       const item = await loadAllowedItem(actor, id, canRestoreItem);
       return items.setStatus(item, "in_closet");
+    },
+
+    // a soft delete: the item stays in the database, marked as deleted
+    // a second delete answers 404, because the item is already "gone"
+    async remove(actor: Actor, id: string) {
+      const item = await loadAllowedItem(actor, id, canDeleteItem);
+      await items.softDelete(item);
     },
 
     async edit(actor: Actor, id: string, input: EditItemInput) {

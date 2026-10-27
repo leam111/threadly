@@ -1,10 +1,13 @@
 import { WardrobeItem } from "../models/WardrobeItem";
 import type { ItemCategory, ItemStatus } from "../utils/wardrobeOptions";
 
-// one item with this id AND this owner, or null
+// "not soft deleted": $ne also matches an old item that has no isDeleted field yet
+const NOT_DELETED = { isDeleted: { $ne: true } };
+
+// one item with this id AND this owner that is not deleted, or null
 // (the owner is part of the query, so someone else's item is never found)
 function findOwned(ownerId: string, id: string) {
-  return WardrobeItem.findOne({ _id: id, ownerId });
+  return WardrobeItem.findOne({ _id: id, ownerId, ...NOT_DELETED });
 }
 
 // a wardrobe item as the database gives it (a Mongoose document)
@@ -25,7 +28,7 @@ export const itemRepository = {
     page: number,
     limit: number,
   ) {
-    const filter: Record<string, unknown> = { ownerId };
+    const filter: Record<string, unknown> = { ownerId, ...NOT_DELETED };
     if (filters.status) {
       filter.status = filters.status;
     }
@@ -45,6 +48,13 @@ export const itemRepository = {
     item.status = status;
     await item.save();
     return item;
+  },
+
+  // never a real delete: the item is only marked, and every query above skips it
+  async softDelete(item: ItemDocument) {
+    item.isDeleted = true;
+    item.deletedAt = new Date();
+    await item.save();
   },
 
   // a value of undefined removes the field: Mongoose sends $unset when it saves
