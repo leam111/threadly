@@ -141,7 +141,6 @@ threadly/
     ├── policies/         itemPolicy.ts: who may do what to a wardrobe item
     ├── migrations/       database changes, run with migrate-mongo
     ├── scripts/          the database safety lock, index helpers, the superadmin seed
-    ├── types/            small type files for multer (it has no types of its own)
     └── utils/            AppError, token helpers, password rules, the audit log writer,
                           the id check, the image type check, and the allowed values for items,
                           profiles and images
