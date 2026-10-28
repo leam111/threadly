@@ -35,15 +35,15 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
       → **401** "Invalid email or password"
 - [ ] `POST /auth/login` with an email that does not exist
       → **401** "Invalid email or password" (the SAME answer as above)
-- [ ] `POST /auth/login` with the right email and password
+- [x] `POST /auth/login` with the right email and password
       → **200** with `accessToken` and `user`, and a `refreshToken` cookie
 - [ ] `GET /auth/me` with no token
       → **401** "Log in first"
 - [x] `GET /auth/me` with `<owner-token>`
       → **200** with the owner's id, email and role
-- [ ] `POST /auth/refresh` with the refresh cookie
+- [x] `POST /auth/refresh` with the refresh cookie
       → **200** with a NEW `accessToken`, and a NEW `refreshToken` cookie (the value changed)
-- [ ] `POST /auth/refresh` again with the OLD cookie value (from before the refresh above)
+- [x] `POST /auth/refresh` again with the OLD cookie value (from before the refresh above)
       → **401** "invalid refresh token". Then `POST /auth/refresh` with the NEW cookie
       → also **401** "invalid refresh token": the whole family is cancelled
 - [ ] Log in twice as the owner (device A and device B, keep both cookie values).
@@ -57,6 +57,8 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
 - [ ] Wait one minute (or restart the server), then send `POST /auth/login` with a wrong password
       7 times within one minute: tries 1 to 6 → **401** "Invalid email or password",
       try 7 → **429** "too many login attempts , please try again after a minute"
+
+Checked by hand by Lea on 2026-10-28 (only the ticked boxes in this group).
 
 ## ADMIN
 
