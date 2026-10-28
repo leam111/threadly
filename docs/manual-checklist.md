@@ -304,15 +304,15 @@ No migration is needed. Use the Owner tab.
 
 - [x] `PATCH /profile/me` with `{ "country": "  France ", "favoriteColors": [" Sage Green ", "NAVY"] }`
       → **200** with `country` "France" and `favoriteColors` ["sage green", "navy"]. `GET /profile/me` shows the same
-- [ ] `PATCH /profile/me` with `{ "favoriteColors": ["red", "Red"] }` → **400** "invalid input" (the same color twice)
+- [x] `PATCH /profile/me` with `{ "favoriteColors": ["red", "Red"] }` → **400** "invalid input" (the same color twice)
 - [x] `PATCH /profile/me` with 11 favorite colors → **400** "invalid input"
-- [ ] `PATCH /profile/me` with `{ "favoriteColors": [" "] }` → **400** "invalid input" (an empty word)
-- [ ] `PATCH /profile/me` with a `country` of 61 characters → **400** "invalid input"
+- [x] `PATCH /profile/me` with `{ "favoriteColors": [" "] }` → **400** "invalid input" (an empty word)
+- [x] `PATCH /profile/me` with a `country` of 61 characters → **400** "invalid input"
 - [x] `PATCH /profile/me` with `{ "country": "", "favoriteColors": [] }` → **200**: no `country` in the answer,
       and `favoriteColors: []`. The other fields (like `city`) did not change
 - [x] `GET /profile/me` (Stranger, never set a color) → **200** with `favoriteColors: []` and no `country`
 
-Checked by hand by Lea on 2026-10-27 (only the ticked boxes in this group).
+Checked by hand by Lea on 2026-10-27 and 2026-10-28.
 
 ## STEP 4: PHOTOS AND THE AVATAR (image storage)
 
@@ -471,3 +471,4 @@ Checked by hand by Lea on 2026-10-27 (only the ticked boxes in this group).
       (In production the refresh cookie needs https, so do not try to log in during this check)
 
 Checked by hand by Lea on 2026-10-27 (only the ticked boxes in this group).
+
