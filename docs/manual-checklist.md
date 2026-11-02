@@ -289,7 +289,7 @@ Use two Postman tabs, Owner and Stranger, as above.
 **Soft delete**
 - [ ] `DELETE /wardrobe/abc` (Owner) → **400** "invalid id"
 - [x] `DELETE /wardrobe/<bag-id>` (Owner) → **200** "item deleted"
-- [x] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
+- [x] After that, as the item's owner : `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
       `PATCH /wardrobe/<bag-id>/archive`, `PATCH /wardrobe/<bag-id>/restore`, `POST /wardrobe/<bag-id>/wear`
       and `DELETE /wardrobe/<bag-id>` → all **404** "item not found"
 - [ ] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
