@@ -25,11 +25,11 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
 
 ## AUTH
 
-- [ ] `POST /auth/register` with `{ "email": "owner1@example.com", "password": "short" }`
+- [x] `POST /auth/register` with `{ "email": "owner1@example.com", "password": "short" }`
       → **400** "the email must be valid and the password needs at least 8 characters , with a letter and a number"
-- [ ] `POST /auth/register` with `{ "email": "owner1@example.com", "password": "Passw0rd1" }`
+- [x] `POST /auth/register` with `{ "email": "owner1@example.com", "password": "Passw0rd1" }`
       → **201** "user created successfully" (do the same for `stranger1@example.com`)
-- [ ] `POST /auth/register` again with `owner1@example.com`
+- [x] `POST /auth/register` again with `owner1@example.com`
       → **409** "user with this email already exists"
 - [x] `POST /auth/login` with the right email and a wrong password
       → **401** "Invalid email or password"
@@ -46,19 +46,19 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
 - [x] `POST /auth/refresh` again with the OLD cookie value (from before the refresh above)
       → **401** "invalid refresh token". Then `POST /auth/refresh` with the NEW cookie
       → also **401** "invalid refresh token": the whole family is cancelled
-- [ ] Log in twice as the owner (device A and device B, keep both cookie values).
+- [x] Log in twice as the owner (device A and device B, keep both cookie values).
       `POST /auth/logout-others` with token and cookie of device A
       → **200** "other sessions logged out". Then `POST /auth/refresh` with the cookie of device B
       → **401** "invalid refresh token". Device A's cookie still refreshes (**200**)
-- [ ] `POST /auth/change-password` with `{ "currentPassword": "Passw0rd1", "newPassword": "Passw0rd2" }`
+- [x] `POST /auth/change-password` with `{ "currentPassword": "Passw0rd1", "newPassword": "Passw0rd2" }`
       → **200** "password changed, please log in again". Then `POST /auth/refresh` with any old
       cookie of this user → **401** "invalid refresh token". (An access token already given still
       works until it expires, at most 15 minutes.) Log in with the new password → **200**
-- [ ] Wait one minute (or restart the server), then send `POST /auth/login` with a wrong password
+- [x] Wait one minute (or restart the server), then send `POST /auth/login` with a wrong password
       7 times within one minute: tries 1 to 6 → **401** "Invalid email or password",
       try 7 → **429** "too many login attempts , please try again after a minute"
 
-Checked by hand by Lea on 2026-10-28 and 2026-11-02 (only the ticked boxes in this group).
+Checked by hand by Lea on 2026-10-28 and 2026-11-02.
 
 ## ADMIN
 
