@@ -275,7 +275,7 @@ Use two Postman tabs, Owner and Stranger, as above.
       `DELETE /wardrobe/<bag-id>` → **404** "item not found".
       Then as the Owner, `GET /wardrobe/<bag-id>` → **200** with the same name, `wearCount` and `updatedAt`
 
-**Filters** (create a few items first; the Cap above was never worn)
+**Filters** (create a few items first; the Cap above was never worn. The "Edit and clear" box above removed the Tote's season and colors, so give the Tote its season "all" and its colors again before these filters)
 - [ ] `GET /wardrobe?category=bag` → only bags. `GET /wardrobe?color=NAVY` → items whose `colors` has "navy"
 - [ ] `GET /wardrobe?season=all&styleTag=minimal` → only items with both
 - [x] Make one item with `"season": "summer"` and one with `"season": "winter"` (the Tote has "all").
