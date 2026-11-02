@@ -31,13 +31,13 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
       → **201** "user created successfully" (do the same for `stranger1@example.com`)
 - [ ] `POST /auth/register` again with `owner1@example.com`
       → **409** "user with this email already exists"
-- [ ] `POST /auth/login` with the right email and a wrong password
+- [x] `POST /auth/login` with the right email and a wrong password
       → **401** "Invalid email or password"
-- [ ] `POST /auth/login` with an email that does not exist
+- [x] `POST /auth/login` with an email that does not exist
       → **401** "Invalid email or password" (the SAME answer as above)
 - [x] `POST /auth/login` with the right email and password
       → **200** with `accessToken` and `user`, and a `refreshToken` cookie
-- [ ] `GET /auth/me` with no token
+- [x] `GET /auth/me` with no token
       → **401** "Log in first"
 - [x] `GET /auth/me` with `<owner-token>`
       → **200** with the owner's id, email and role
@@ -58,7 +58,7 @@ Base URL: `http://localhost:3000` (start the server from `api/` with `npm run de
       7 times within one minute: tries 1 to 6 → **401** "Invalid email or password",
       try 7 → **429** "too many login attempts , please try again after a minute"
 
-Checked by hand by Lea on 2026-10-28 (only the ticked boxes in this group).
+Checked by hand by Lea on 2026-10-28 and 2026-11-02 (only the ticked boxes in this group).
 
 ## ADMIN
 
