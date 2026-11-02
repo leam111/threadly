@@ -456,3 +456,5 @@ from the api folder:
 ```
 All three must be clean. Then I start the server (`npm run dev`) and go through
 [docs/manual-checklist.md](docs/manual-checklist.md) by hand in Postman.
+
+Verification: AUTH, STEP 3 and several other groups were checked by hand (docs/manual-checklist.md). A one-time script run against an in-memory database also verified 142 of the 176 checklist boxes with no failures (docs/verification-report.md). The 34 boxes that need real image storage or a browser are marked as skipped.
