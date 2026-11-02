@@ -289,14 +289,14 @@ Use two Postman tabs, Owner and Stranger, as above.
 **Soft delete**
 - [ ] `DELETE /wardrobe/abc` (Owner) → **400** "invalid id"
 - [x] `DELETE /wardrobe/<bag-id>` (Owner) → **200** "item deleted"
-- [ ] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
+- [x] After that, as the Owner: `GET /wardrobe/<bag-id>`, `PATCH /wardrobe/<bag-id>` with `{ "name": "x" }`,
       `PATCH /wardrobe/<bag-id>/archive`, `PATCH /wardrobe/<bag-id>/restore`, `POST /wardrobe/<bag-id>/wear`
       and `DELETE /wardrobe/<bag-id>` → all **404** "item not found"
 - [ ] `GET /wardrobe` (Owner) → the deleted item is not in `items`, and `total` went down by 1
-- [ ] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
+- [x] In the database (Atlas, collection `wardrobeitems`) the item is still there, with `isDeleted: true`
       and a `deletedAt`
 
-Checked by hand by Lea on 2026-10-27 (only the ticked boxes in this group).
+Checked by hand by Lea on 2026-10-27 and 2026-11-02 (only the ticked boxes in this group).
 
 ## STEP 3: PROFILE EXTRAS
 
