@@ -69,3 +69,9 @@ Migration 005 (item image indexes) should run on the real database before photos
 
 Migrations 004 and 005 were tried on the sandbox only (insert 2 samples, up, down, delete the samples).
 The sandbox has 004 and 005 pending again (and an empty `itemimages` collection).
+
+## Reminders
+
+- 2026-11-03: run `npm audit` and `npm ls qs body-parser` in `api/`. Expect 0 vulnerabilities and `body-parser@2.4.0`. Do not deploy before this check.
+- Before any deployment: use a NEW database, run the migrations on it, and make a NEW superadmin with a strong password (the seed script). Never put the test accounts online.
+- If uploads answer 502 "image storage failed", the free Supabase project may be paused: click "Restore project" in the Supabase dashboard.
