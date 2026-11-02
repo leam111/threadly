@@ -62,22 +62,24 @@ Checked by hand by Lea on 2026-10-28 and 2026-11-02.
 
 ## ADMIN
 
-- [ ] `GET /admin/users` with `<owner-token>` (a member)
+- [x] `GET /admin/users` with `<owner-token>` (a member)
       → **403** "You are not allowed here"
-- [ ] `GET /admin/users` with `<admin-token>`
+- [x] `GET /admin/users` with `<admin-token>`
       → **200** with `page`, `limit`, `total`, `items`, and no `passwordHash` in any item
-- [ ] `PATCH /admin/users/<admin-id>/active` with `<admin-token>` and `{ "isActive": false }`
+- [x] `PATCH /admin/users/<admin-id>/active` with `<admin-token>` and `{ "isActive": false }`
       (the admin's own account) → **400** "you cannot switch off your own account"
-- [ ] `PATCH /admin/users/<superadmin-id>/active` with `<admin-token>` and `{ "isActive": false }`
+- [x] `PATCH /admin/users/<superadmin-id>/active` with `<admin-token>` and `{ "isActive": false }`
       → **403** "only a superadmin can change a superadmin"
-- [ ] `PATCH /admin/users/<member-id>/active` with `<admin-token>` and `{ "isActive": false }`
+- [x] `PATCH /admin/users/<member-id>/active` with `<admin-token>` and `{ "isActive": false }`
       → **200** "user updated" with `isActive: false`. At once, `GET /auth/me` with that member's
       token → **401** "Log in again", and `POST /auth/refresh` with their cookie
       → **401** "invalid refresh token"
-- [ ] `GET /admin/audit?action=user.deactivate` with `<admin-token>`
+- [x] `GET /admin/audit?action=user.deactivate` with `<admin-token>`
       → **200**, and the newest row has action `user.deactivate` and target `<member-id>`
-- [ ] Switch the member back on: `PATCH /admin/users/<member-id>/active` with `{ "isActive": true }`
+- [x] Switch the member back on: `PATCH /admin/users/<member-id>/active` with `{ "isActive": true }`
       → **200** "user updated" with `isActive: true`
+
+Checked by hand by Lea on 2026-11-02.
 
 ## PERMISSIONS
 
